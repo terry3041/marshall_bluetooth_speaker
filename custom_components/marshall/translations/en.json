@@ -1,0 +1,35 @@
+{
+    "config": {
+        "step": {
+            "bluetooth": {
+                "description": "Discovered device at {address}. Confirm or adjust the name.",
+                "data": {
+                    "name": "Name (optional)"
+                }
+            },
+            "user": {
+                "description": "Select the Bluetooth device or enter its address.",
+                "data": {
+                    "address": "Bluetooth address",
+                    "name": "Name (optional)"
+                }
+            }
+        },
+        "abort": {
+            "already_configured": "This entry is already configured.",
+            "not_supported": "Device does not advertise the expected FE8F service."
+        }
+    },
+    "entity": {
+        "number": {
+            "led_brightness": {
+                "name": "LED brightness"
+            }
+        },
+        "select": {
+            "source": {
+                "name": "Source"
+            }
+        }
+    }
+}

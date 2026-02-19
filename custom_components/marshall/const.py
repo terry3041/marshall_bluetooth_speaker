@@ -1,0 +1,89 @@
+"""Constants for Marshall Bluetooth Speakers."""
+
+from logging import Logger, getLogger
+
+LOGGER: Logger = getLogger(__package__)
+
+DOMAIN = "marshall"
+NAME = "Marshall Bluetooth Speakers"
+
+CONF_ADDRESS = "address"
+CONF_NAME = "name"
+
+FE8F_SERVICE_UUID = "FE8F"
+SECONDARY_SERVICE_UUID = "8FE6819D-D5F9-49FA-90BA-4DA05A7D2725"
+
+CHAR_ALERT_LEVEL = "2A06"
+CHAR_BATTERY_LEVEL = "2A19"
+CHAR_MODEL_NUMBER = "2A24"
+CHAR_SERIAL_NUMBER = "2A25"
+CHAR_FIRMWARE_REV = "2A26"
+CHAR_HARDWARE_REV = "2A27"
+
+CHAR_CONTROL = "4446CF5F-12F2-4C1E-AFE1-B15797535BA8"
+CHAR_VOLUME = "44FA50B2-D0A3-472E-A939-D80CF17638BB"
+CHAR_MEDIA_INFO = "95C09F26-95A4-4597-A798-B8E408F5CA66"
+CHAR_EQ = "31FBB033-1013-BD3E-A249-D856F156A319"
+CHAR_PAIRING = "4A75C20F-13BD-44A1-B39D-A70F86F607A2"
+CHAR_DEVICE_NAME = "3BA91C2E-8B08-4C27-9D4E-4936A793FCFB"
+CHAR_LED_BRIGHTNESS = "35E3B090-1D43-35AE-AF35-D254B153FC36"
+
+NOTIFY_CHARACTERISTICS = {
+    CHAR_VOLUME,
+    CHAR_CONTROL,
+    CHAR_MEDIA_INFO,
+    CHAR_EQ,
+}
+
+VOLUME_MIN = 0
+VOLUME_MAX = 32
+
+LED_BRIGHTNESS_MIN = 0
+LED_BRIGHTNESS_MAX = 35
+LED_BRIGHTNESS_OFFSET = 35
+
+CMD_PLAY = 0x01
+CMD_PAUSE = 0x00
+CMD_PREVIOUS = 0x02
+CMD_NEXT = 0x03
+
+AUDIO_SOURCE_COMMANDS = {
+    "Bluetooth": 0x0C,
+    "Aux": 0x0D,
+    "RCA": 0x0E,
+}
+
+# Status byte indices from control characteristic
+STATUS_INDEX_SOURCE = 0
+STATUS_INDEX_PLAY_STATUS = 1
+STATUS_INDEX_INTERACTION_SOUND = 3
+
+# Media info constants
+MEDIA_INFO_HEADER_SIZE = 8  # 4 bytes marker + 2 bytes type + 2 bytes length
+MEDIA_INFO_ENTRY_MARKER_TERMINATOR = 0xFF
+MEDIA_INFO_MAX_STRING_LENGTH = 256
+MEDIA_INFO_MIN_PARTS_FOR_FULL_FORMAT = 3  # Title, Artist, Album
+
+# EQ presets - based on Marshall Stanmore 2 implementation
+EQ_PRESETS = {
+    "Flat": 0x00,
+    "Bright": 0x01,
+    "Warm": 0x02,
+    "Voice": 0x03,
+}
+
+EQ_PRESET_NAMES = {v: k for k, v in EQ_PRESETS.items()}
+
+# Audio source mapping (int to string)
+AUDIO_SOURCE_MAPPING = {
+    0x03: "Bluetooth",
+    0x01: "Aux",
+    0x04: "RCA",
+}
+
+# Play status mapping (int to status)
+PLAY_STATUS_MAPPING = {
+    0x00: "playing",
+    0x01: "paused",
+    0x02: "stopped",
+}

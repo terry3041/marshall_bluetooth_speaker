@@ -1,0 +1,20 @@
+{
+  "domain": "marshall",
+  "name": "Marshall Bluetooth Speakers",
+  "codeowners": [
+    "@elrobertocarlos"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/elrobertocarlos/marchall_bluetooth_speaker",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/elrobertocarlos/marchall_bluetooth_speaker/issues",
+  "dependencies": [
+    "bluetooth"
+  ],
+  "bluetooth": [
+    {
+      "service_uuid": "0000fe8f-0000-1000-8000-00805f9b34fb"
+    }
+  ],
+  "version": "0.1.0"
+}

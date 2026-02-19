@@ -1,46 +1,174 @@
-# Notice
+# Marshall Bluetooth Speakers - Home Assistant Integration
 
-The component and platforms in this repository are not meant to be used by a
-user, but as a "blueprint" that custom component developers can build
-upon, to make more awesome stuff.
+A Home Assistant integration for controlling Marshall Bluetooth speakers over BLE (Bluetooth Low Energy).
 
-HAVE FUN! 😎
+## Features
 
-## Why?
+- 🔊 **Media Player Control**: Play, pause, next, previous track controls
+- 🔈 **Volume Control**: Adjust speaker volume with real-time feedback
+- 💡 **LED Brightness**: Control speaker LED brightness (0-35 range)
+- 🎵 **Audio Source Selection**: Switch between Bluetooth, Aux, and RCA inputs (model-dependent)
+- 🎧 **EQ Presets**: Select equalizer presets - Flat, Bright, Warm, Voice (Stanmore II only)
+- 📊 **Media Metadata**: Display track title, artist, and album information
+- 🔌 **Connection Status**: Track device connectivity
+- 🏷️ **Device Information**: Model, serial number, firmware, and hardware details
+- 🎯 **Multi-Model Support**: Acton II, Stanmore II, and extensible for additional models
 
-This is simple, by having custom_components look (README + structure) the same
-it is easier for developers to help each other and for users to start using them.
+## Supported Devices
 
-If you are a developer and you want to add things to this "blueprint" that you think more
-developers will have use for, please open a PR to add it :)
+| Model | Features |
+|-------|----------|
+| **Acton II** | Volume, LED Brightness, Audio Source (Bluetooth/Aux), Media Controls, Media Info |
+| **Stanmore II** | Volume, LED Brightness, Audio Source (Bluetooth/Aux/RCA), EQ Presets, Media Controls, Media Info |
 
-## What?
+## Installation
 
-This repository contains multiple files, here is a overview:
+### HACS (Recommended)
 
-File | Purpose | Documentation
--- | -- | --
-`.devcontainer.json` | Used for development/testing with Visual Studio Code. | [Documentation](https://code.visualstudio.com/docs/remote/containers)
-`.github/ISSUE_TEMPLATE/*.yml` | Templates for the issue tracker | [Documentation](https://help.github.com/en/github/building-a-strong-community/configuring-issue-templates-for-your-repository)
-`custom_components/integration_blueprint/*` | Integration files, this is where everything happens. | [Documentation](https://developers.home-assistant.io/docs/creating_component_index)
-`CONTRIBUTING.md` | Guidelines on how to contribute. | [Documentation](https://help.github.com/en/github/building-a-strong-community/setting-guidelines-for-repository-contributors)
-`LICENSE` | The license file for the project. | [Documentation](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/licensing-a-repository)
-`README.md` | The file you are reading now, should contain info about the integration, installation and configuration instructions. | [Documentation](https://help.github.com/en/github/writing-on-github/basic-writing-and-formatting-syntax)
-`requirements.txt` | Python packages used for development/lint/testing this integration. | [Documentation](https://pip.pypa.io/en/stable/user_guide/#requirements-files)
+1. Open Home Assistant and go to **Settings** → **Devices & Services** → **Custom repositories**
+2. Add this repository URL: `https://github.com/elrobertocarlos/marshall_bluetooth_speaker`
+3. Search for "Marshall Bluetooth Speakers" in HACS and install
 
-## How?
+### Manual Installation
 
-1. Create a new repository in GitHub, using this repository as a template by clicking the "Use this template" button in the GitHub UI.
-1. Open your new repository in Visual Studio Code devcontainer (Preferably with the "`Dev Containers: Clone Repository in Named Container Volume...`" option).
-1. Rename all instances of the `integration_blueprint` to `custom_components/<your_integration_domain>` (e.g. `custom_components/awesome_integration`).
-1. Rename all instances of the `Integration Blueprint` to `<Your Integration Name>` (e.g. `Awesome Integration`).
-1. Run the `scripts/develop` to start HA and test out your new integration.
+1. Copy the `custom_components/marshall` folder to your Home Assistant `custom_components` directory
+2. Restart Home Assistant
+3. Go to **Settings** → **Devices & Services** → **Create Integration**
+4. Search for "Marshall Bluetooth Speakers" and select it
 
-## Next steps
+## Configuration
 
-These are some next steps you may want to look into:
-- Add tests to your integration, [`pytest-homeassistant-custom-component`](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) can help you get started.
-- Add brand images (logo/icon) to https://github.com/home-assistant/brands.
-- Create your first release.
-- Share your integration on the [Home Assistant Forum](https://community.home-assistant.io/).
-- Submit your integration to [HACS](https://hacs.xyz/docs/publish/start).
+### Discovery
+
+The integration will automatically discover nearby Marshall speakers via Bluetooth:
+
+1. Go to **Settings** → **Devices & Services**
+2. Look for "Discovered" section showing your Marshall speaker
+3. Click "Add" to add the integration
+4. Confirm the device when prompted (prevents accidental pairing)
+
+### Manual Setup
+
+If auto-discovery doesn't work:
+
+1. Open **Settings** → **Devices & Services** → **Create Integration**
+2. Search for "Marshall Bluetooth Speakers"
+3. Select and configure (will prompt for device address)
+
+## Entities
+
+### Media Player
+- **Play/Pause/Next/Previous**: Full playback control
+- **Media Title**: Shows current track - artist (album)
+- **Source Selection**: Switch between available audio inputs
+- **Volume**: Adjustable via slider (0-32)
+
+### Numbers
+- **LED Brightness**: Adjustable LED brightness (0-35)
+
+### Selectors
+- **Audio Source**: Bluetooth, Aux, RCA (model-dependent)
+- **EQ Preset**: Flat, Bright, Warm, Voice (Stanmore II only)
+
+### Sensors (Diagnostic Category)
+- **Device Name**: Speaker name from device
+- **Model**: Device model name
+- **Serial Number**: Device serial number
+- **Firmware Version**: Current firmware version
+- **Hardware Version**: Hardware revision
+- **Volume Level**: Current volume setting (0-32)
+- **Audio Source**: Currently active audio source
+- **Play Status**: Current playback state (playing/paused/stopped)
+
+### Binary Sensors (Diagnostic Category)
+- **Connected**: Speaker connection status
+
+## Usage Examples
+
+### Toggle Playback
+```yaml
+service: media_player.toggle
+target:
+  entity_id: media_player.acton_ii
+```
+
+### Change Volume
+```yaml
+service: media_player.volume_set
+target:
+  entity_id: media_player.acton_ii
+data:
+  volume_level: 0.5
+```
+
+### Switch Audio Source
+```yaml
+service: select.select_option
+target:
+  entity_id: select.acton_ii_source
+data:
+  option: "Aux"
+```
+
+### Set EQ Preset (Stanmore II)
+```yaml
+service: select.select_option
+target:
+  entity_id: select.stanmore_ii_eq_preset
+data:
+  option: "Bright"
+```
+
+### Adjust LED Brightness
+```yaml
+service: number.set_value
+target:
+  entity_id: number.acton_ii_led_brightness
+data:
+  value: 20
+```
+
+## Troubleshooting
+
+### Device Not Discovered
+- Ensure the speaker is powered on and in Bluetooth pairing mode
+- Check that your Home Assistant device has Bluetooth capability
+- Try rebooting Home Assistant
+
+### Connection Timeouts
+- Move the speaker closer to your Home Assistant device
+- Reduce interference from other Bluetooth devices
+- Restart the speaker
+
+### Volume/Source Not Changing
+- Ensure the characteristic is writable
+- Check the device is responding to commands (LED should blink)
+- Verify the speaker model supports the feature
+
+### Missing EQ Preset Select
+- This is only available on Stanmore II models
+- Check the device model in the entity details
+
+## Contributing
+
+Contributions are welcome! Please open an issue or submit a PR for:
+- Additional Marshall speaker models
+- Bug fixes
+- Feature improvements
+- Documentation updates
+
+## License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+
+## Disclaimer
+
+This is an unofficial integration and is not affiliated with Marshall Amplification plc.
+
+## Credits
+
+This integration was developed by reverse-engineering the Marshall Bluetooth protocol and is built upon research and insights from:
+
+- [rabbit-aaron/marshall-stanmore-2](https://github.com/rabbit-aaron/marshall-stanmore-2) - Protocol analysis and characteristic research for Marshall speakers
+
+Developed for controlling Marshall speakers via BLE without requiring official apps.
