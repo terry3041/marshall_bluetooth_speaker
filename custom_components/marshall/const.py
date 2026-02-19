@@ -10,6 +10,11 @@ NAME = "Marshall Bluetooth Speakers"
 CONF_ADDRESS = "address"
 CONF_NAME = "name"
 
+# Service names
+SERVICE_ENTER_PAIRING_MODE = "enter_pairing_mode"
+SERVICE_SET_DEVICE_NAME = "set_device_name"
+SERVICE_SET_EQUALISER_PROFILE = "set_equaliser_profile"
+
 FE8F_SERVICE_UUID = "FE8F"
 SECONDARY_SERVICE_UUID = "8FE6819D-D5F9-49FA-90BA-4DA05A7D2725"
 
@@ -42,6 +47,8 @@ LED_BRIGHTNESS_MIN = 0
 LED_BRIGHTNESS_MAX = 35
 LED_BRIGHTNESS_OFFSET = 35
 
+DEVICE_NAME_MAX_LENGTH = 255
+
 CMD_PLAY = 0x01
 CMD_PAUSE = 0x00
 CMD_PREVIOUS = 0x02
@@ -64,15 +71,19 @@ MEDIA_INFO_ENTRY_MARKER_TERMINATOR = 0xFF
 MEDIA_INFO_MAX_STRING_LENGTH = 256
 MEDIA_INFO_MIN_PARTS_FOR_FULL_FORMAT = 3  # Title, Artist, Album
 
-# EQ presets - based on Marshall Stanmore 2 implementation
-EQ_PRESETS = {
-    "Flat": 0x00,
-    "Bright": 0x01,
-    "Warm": 0x02,
-    "Voice": 0x03,
+# EQ bands: 5 bands (Bass, Low-Mid, Mid, High-Mid, Treble)
+# Values: 0-10 (where 5 is neutral/flat)
+EQ_BAND_MIN = 0
+EQ_BAND_MAX = 10
+EQ_BAND_NEUTRAL = 5
+EQ_BAND_COUNT = 5
+EQ_BAND_NAMES = {
+    0: "160 Hz",
+    1: "400 Hz",
+    2: "1 kHz",
+    3: "2.5 kHz",
+    4: "6.25 kHz",
 }
-
-EQ_PRESET_NAMES = {v: k for k, v in EQ_PRESETS.items()}
 
 # Audio source mapping (int to string)
 AUDIO_SOURCE_MAPPING = {

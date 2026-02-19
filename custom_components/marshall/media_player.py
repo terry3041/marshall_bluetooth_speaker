@@ -12,7 +12,7 @@ from homeassistant.components.media_player.const import (
     MediaPlayerState,
 )
 
-from .ble import ActonBleError
+from .ble import MarshallBleError
 from .const import (
     CHAR_CONTROL,
     CHAR_VOLUME,
@@ -23,20 +23,20 @@ from .const import (
     LOGGER,
     VOLUME_MAX,
 )
-from .entity import ActonEntity
+from .entity import MarshallEntity
 from .model_config import get_model_features
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-    from .coordinator import ActonDataUpdateCoordinator
-    from .data import ActonConfigEntry
+    from .coordinator import MarshallDataUpdateCoordinator
+    from .data import MarshallConfigEntry
 
 
 async def async_setup_entry(
     hass: HomeAssistant,  # noqa: ARG001 Unused function argument: `hass`
-    entry: ActonConfigEntry,
+    entry: MarshallConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the media_player platform."""
@@ -45,10 +45,10 @@ async def async_setup_entry(
     # Get features supported by this model (for future use in filtering)
     get_model_features(coordinator.state.model)
 
-    async_add_entities([ActonMediaPlayer(coordinator)])
+    async_add_entities([MarshallMediaPlayer(coordinator)])
 
 
-class ActonMediaPlayer(ActonEntity, MediaPlayerEntity):
+class MarshallMediaPlayer(MarshallEntity, MediaPlayerEntity):
     """Marshall speakers media player entity."""
 
     _attr_supported_features = (
@@ -59,7 +59,7 @@ class ActonMediaPlayer(ActonEntity, MediaPlayerEntity):
         | MediaPlayerEntityFeature.VOLUME_SET
     )
 
-    def __init__(self, coordinator: ActonDataUpdateCoordinator) -> None:
+    def __init__(self, coordinator: MarshallDataUpdateCoordinator) -> None:
         """Initialize the media player entity with its coordinator."""
         super().__init__(coordinator)
         self._attr_name = None
@@ -141,5 +141,5 @@ class ActonMediaPlayer(ActonEntity, MediaPlayerEntity):
     ) -> None:
         try:
             await self.coordinator.client.async_write(uuid, data, response=response)
-        except ActonBleError as exception:
+        except MarshallBleError as exception:
             LOGGER.debug("BLE write failed for %s: %s", uuid, exception)

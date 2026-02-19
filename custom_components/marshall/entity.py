@@ -6,15 +6,15 @@ from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceIn
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, NAME
-from .coordinator import ActonDataUpdateCoordinator
+from .coordinator import MarshallDataUpdateCoordinator
 
 
-class ActonEntity(CoordinatorEntity[ActonDataUpdateCoordinator]):
+class MarshallEntity(CoordinatorEntity[MarshallDataUpdateCoordinator]):
     """Marshall speakers base entity."""
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: ActonDataUpdateCoordinator) -> None:
+    def __init__(self, coordinator: MarshallDataUpdateCoordinator) -> None:
         """Initialize."""
         super().__init__(coordinator)
         self._address = coordinator.config_entry.data.get("address")

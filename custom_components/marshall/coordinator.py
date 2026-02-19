@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .ble import ActonBleError, BleClient
+from .ble import BleClient, MarshallBleError
 from .const import (
     AUDIO_SOURCE_COMMANDS,
     AUDIO_SOURCE_MAPPING,
@@ -20,10 +20,11 @@ from .const import (
     CHAR_LED_BRIGHTNESS,
     CHAR_MEDIA_INFO,
     CHAR_MODEL_NUMBER,
+    CHAR_PAIRING,
     CHAR_SERIAL_NUMBER,
     CHAR_VOLUME,
-    EQ_PRESET_NAMES,
-    EQ_PRESETS,
+    DEVICE_NAME_MAX_LENGTH,
+    EQ_BAND_COUNT,
     LED_BRIGHTNESS_OFFSET,
     LOGGER,
     MEDIA_INFO_ENTRY_MARKER_TERMINATOR,
@@ -32,27 +33,29 @@ from .const import (
     MEDIA_INFO_MIN_PARTS_FOR_FULL_FORMAT,
     NOTIFY_CHARACTERISTICS,
     PLAY_STATUS_MAPPING,
+    STATUS_INDEX_INTERACTION_SOUND,
     STATUS_INDEX_PLAY_STATUS,
     STATUS_INDEX_SOURCE,
 )
-from .data import ActonState
+from .data import MarshallState
 
 MIN_DEVICE_NAME_DATA_LENGTH = 2
+EQ_BAND_MAX_VALUE = 10
 
 if TYPE_CHECKING:
-    from .data import ActonConfigEntry
+    from .data import MarshallConfigEntry
 
 
 # https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
-class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
+class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
     """Class to manage BLE state for Marshall speakers."""
 
-    config_entry: ActonConfigEntry
+    config_entry: MarshallConfigEntry
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize the data update coordinator."""
         super().__init__(*args, update_interval=timedelta(minutes=5), **kwargs)
-        self.state = ActonState()
+        self.state = MarshallState()
         self._static_loaded = False
         self._notify_started = False
 
@@ -61,7 +64,7 @@ class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
         """Return the BLE client instance."""
         return self.config_entry.runtime_data.client
 
-    async def _async_update_data(self) -> ActonState:
+    async def _async_update_data(self) -> MarshallState:
         """Refresh state via BLE reads and notifications."""
         try:
             await self.client.async_connect()
@@ -70,7 +73,7 @@ class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
             if not self._static_loaded:
                 await self._refresh_static_state()
                 self._static_loaded = True
-        except ActonBleError as exception:
+        except MarshallBleError as exception:
             LOGGER.debug("BLE update failed: %s", exception)
             raise UpdateFailed(exception) from exception
 
@@ -82,7 +85,7 @@ class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
         for uuid in NOTIFY_CHARACTERISTICS:
             try:
                 await self.client.async_start_notify(uuid, self._handle_notify)
-            except ActonBleError as exception:
+            except MarshallBleError as exception:
                 LOGGER.debug("BLE notify failed for %s: %s", uuid, exception)
         self._notify_started = True
 
@@ -97,10 +100,13 @@ class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
 
         # Read control status for source and play state
         control = await self._safe_read(CHAR_CONTROL)
-        if control and len(control) > STATUS_INDEX_PLAY_STATUS:
+        if control and len(control) > STATUS_INDEX_INTERACTION_SOUND:
             self.state.source = AUDIO_SOURCE_MAPPING.get(control[STATUS_INDEX_SOURCE])
             status = PLAY_STATUS_MAPPING.get(control[STATUS_INDEX_PLAY_STATUS])
             self.state.is_playing = status == "playing" if status else None
+            self.state.interaction_sounds = bool(
+                control[STATUS_INDEX_INTERACTION_SOUND]
+            )
 
     async def _refresh_static_state(self) -> None:
         self.state.device_name = self._decode_device_name(
@@ -116,10 +122,10 @@ class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
         if led_data:
             self.state.led_brightness = led_data[0] - LED_BRIGHTNESS_OFFSET
 
-        # Read EQ preset
+        # Read EQ bands
         eq_data = await self._safe_read(CHAR_EQ)
-        if eq_data:
-            self.state.eq_preset = self._decode_eq_preset(eq_data)
+        if eq_data and len(eq_data) >= EQ_BAND_COUNT:
+            self.state.eq_bands = list(eq_data[:EQ_BAND_COUNT])
 
     def _handle_notify(self, uuid: str, data: bytes) -> None:
         if uuid == CHAR_VOLUME and data:
@@ -127,10 +133,13 @@ class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
         elif uuid == CHAR_CONTROL:
             self.state.control_raw = data
             # Decode control status for source and play state
-            if data and len(data) > STATUS_INDEX_PLAY_STATUS:
+            if data and len(data) > STATUS_INDEX_INTERACTION_SOUND:
                 self.state.source = AUDIO_SOURCE_MAPPING.get(data[STATUS_INDEX_SOURCE])
                 status = PLAY_STATUS_MAPPING.get(data[STATUS_INDEX_PLAY_STATUS])
                 self.state.is_playing = status == "playing" if status else None
+                self.state.interaction_sounds = bool(
+                    data[STATUS_INDEX_INTERACTION_SOUND]
+                )
         elif uuid == CHAR_MEDIA_INFO:
             # Ignore terminator pattern to keep the latest media info
             if not (
@@ -139,8 +148,10 @@ class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
             ):
                 self.state.media_info = self._decode_media_info(data)
         elif uuid == CHAR_EQ:
-            self.state.eq_raw = data
-            self.state.eq_preset = self._decode_eq_preset(data)
+            # EQ data: 5 bytes, one for each band (0-10, where 5 is neutral)
+            if data and len(data) >= EQ_BAND_COUNT:
+                bands = list(data[:EQ_BAND_COUNT])
+                self.state.eq_bands = bands
         else:
             self.state.unknown_notify[uuid] = data
 
@@ -149,7 +160,7 @@ class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
     async def _safe_read(self, uuid: str) -> bytes:
         try:
             return await self.client.async_read(uuid)
-        except ActonBleError as exception:
+        except MarshallBleError as exception:
             LOGGER.debug("BLE read failed for %s: %s", uuid, exception)
             return b""
 
@@ -162,7 +173,7 @@ class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
             )
             self.state.led_brightness = brightness
             self.async_set_updated_data(self.state)
-        except ActonBleError as exception:
+        except MarshallBleError as exception:
             LOGGER.debug("Failed to set LED brightness: %s", exception)
 
     async def async_set_audio_source(self, source: str) -> None:
@@ -175,21 +186,101 @@ class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
             await self.client.async_write(CHAR_CONTROL, bytes([command]), response=True)
             self.state.source = source
             self.async_set_updated_data(self.state)
-        except ActonBleError as exception:
+        except MarshallBleError as exception:
             LOGGER.debug("Failed to set audio source: %s", exception)
 
-    async def async_set_eq_preset(self, preset: str) -> None:
-        """Set EQ preset (Flat, Bright, Warm, Voice)."""
-        if preset not in EQ_PRESETS:
-            LOGGER.warning("Invalid EQ preset: %s", preset)
-            return
-        command = EQ_PRESETS[preset]
+    async def async_set_interaction_sounds(self, *, enabled: bool) -> None:
+        """Enable or disable interaction sounds."""
         try:
-            await self.client.async_write(CHAR_EQ, bytes([command]), response=False)
-            self.state.eq_preset = preset
+            command = 0x01 if enabled else 0x00
+            await self.client.async_write(CHAR_CONTROL, bytes([command]), response=True)
+            self.state.interaction_sounds = enabled
             self.async_set_updated_data(self.state)
-        except ActonBleError as exception:
-            LOGGER.debug("Failed to set EQ preset: %s", exception)
+            LOGGER.info("Set interaction sounds to: %s", enabled)
+        except MarshallBleError as exception:
+            LOGGER.debug("Failed to set interaction sounds: %s", exception)
+
+    async def async_enter_pairing_mode(self) -> None:
+        """Request the speaker to enter Bluetooth pairing mode."""
+        try:
+            await self.client.async_write(CHAR_PAIRING, bytes([0x01]), response=True)
+            LOGGER.info("Requested speaker to enter pairing mode")
+        except MarshallBleError as exception:
+            LOGGER.error("Failed to enter pairing mode: %s", exception)
+            raise
+
+    async def async_set_device_name(self, name: str) -> None:
+        """Set the device name on the speaker."""
+        if not name:
+            LOGGER.warning("Device name cannot be empty")
+            return
+
+        # Encode the name as UTF-8
+        name_bytes = name.encode("utf-8")
+        name_length = len(name_bytes)
+
+        if name_length > DEVICE_NAME_MAX_LENGTH:
+            LOGGER.warning(
+                "Device name too long (max %d bytes), truncating",
+                DEVICE_NAME_MAX_LENGTH,
+            )
+            name_bytes = name_bytes[:DEVICE_NAME_MAX_LENGTH]
+            name_length = DEVICE_NAME_MAX_LENGTH
+
+        # Format: 0x01, length byte, then the name bytes
+        data = bytes([0x01, name_length]) + name_bytes
+
+        try:
+            await self.client.async_write(CHAR_DEVICE_NAME, data, response=True)
+
+            # Read back the device name to confirm and update UI
+            device_name_data = await self._safe_read(CHAR_DEVICE_NAME)
+            if device_name_data:
+                self.state.device_name = self._decode_device_name(device_name_data)
+            else:
+                self.state.device_name = name
+
+            # Push update to UI immediately
+            self.async_set_updated_data(self.state)
+            LOGGER.info("Set device name to: %s", name)
+        except MarshallBleError as exception:
+            LOGGER.error("Failed to set device name: %s", exception)
+            raise
+
+    async def async_set_equaliser_profile(self, bands: list[int]) -> None:
+        """Set the equaliser profile with 5 bands (0-10, where 5 is neutral)."""
+        if not bands or len(bands) != EQ_BAND_COUNT:
+            LOGGER.warning(
+                "Invalid EQ bands (expected %d values, got %d)",
+                EQ_BAND_COUNT,
+                len(bands) if bands else 0,
+            )
+            return
+
+        # Validate and clamp band values
+        validated_bands = []
+        for i, value in enumerate(bands):
+            if not isinstance(value, int) or value < 0 or value > EQ_BAND_MAX_VALUE:
+                LOGGER.warning(
+                    "Invalid EQ band %d value: %s (must be 0-%d)",
+                    i,
+                    value,
+                    EQ_BAND_MAX_VALUE,
+                )
+                return
+            validated_bands.append(value)
+
+        # Format: 5 bytes, one for each band (0-10)
+        data = bytes(validated_bands)
+
+        try:
+            await self.client.async_write(CHAR_EQ, data, response=True)
+            self.state.eq_bands = validated_bands
+            self.async_set_updated_data(self.state)
+            LOGGER.info("Set EQ bands to: %s", validated_bands)
+        except MarshallBleError as exception:
+            LOGGER.error("Failed to set EQ profile: %s", exception)
+            raise
 
     @staticmethod
     def _decode_str(data: bytes) -> str | None:
@@ -201,19 +292,11 @@ class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
             return None
 
     @staticmethod
-    def _decode_eq_preset(data: bytes) -> str | None:
-        """Decode EQ preset from single-byte value."""
-        if not data or len(data) == 0:
-            return None
-        preset_value = data[0]
-        return EQ_PRESET_NAMES.get(preset_value)
-
-    @staticmethod
     def _decode_device_name(data: bytes) -> str | None:
         if not data:
             return None
         if data[0] != 0x01:
-            return ActonDataUpdateCoordinator._decode_str(data)
+            return MarshallDataUpdateCoordinator._decode_str(data)
         if len(data) < MIN_DEVICE_NAME_DATA_LENGTH:
             return None
         length = data[1]
@@ -221,7 +304,7 @@ class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
             return ""
         start = 2
         end = min(len(data), start + length)
-        return ActonDataUpdateCoordinator._decode_str(data[start:end])
+        return MarshallDataUpdateCoordinator._decode_str(data[start:end])
 
     @staticmethod
     def _decode_media_info(data: bytes) -> str | None:
@@ -280,7 +363,7 @@ class ActonDataUpdateCoordinator(DataUpdateCoordinator[ActonState]):
 
                 # Extract and decode string
                 string_data = data[offset : offset + str_length]
-                decoded = ActonDataUpdateCoordinator._decode_str(string_data)
+                decoded = MarshallDataUpdateCoordinator._decode_str(string_data)
 
                 if decoded:
                     parts.append(decoded)

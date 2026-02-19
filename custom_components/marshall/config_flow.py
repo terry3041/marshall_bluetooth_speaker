@@ -17,7 +17,7 @@ from .const import CONF_ADDRESS, CONF_NAME, DOMAIN, FE8F_SERVICE_UUID
 SHORT_UUID_LENGTH = 4
 
 
-class ActonFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
+class MarshallFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for Marshall speakers."""
 
     VERSION = 1
@@ -42,7 +42,7 @@ class ActonFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="not_supported")
 
             self._discovered_address = discovery_info.address
-            self._discovered_name = discovery_info.name or "Acton II"
+            self._discovered_name = discovery_info.name or "Marshall Speaker"
 
         if self._discovered_address is None:
             return self.async_abort(reason="not_supported")
@@ -68,7 +68,7 @@ class ActonFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 errors={},
             )
 
-        name = user_input.get(CONF_NAME) or self._discovered_name or "Acton II"
+        name = user_input.get(CONF_NAME) or self._discovered_name or "Marshall Speaker"
         return self.async_create_entry(
             title=name,
             data={CONF_ADDRESS: self._discovered_address, CONF_NAME: name},
@@ -172,6 +172,6 @@ class ActonFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             ):
                 continue
             address = service_info.address
-            name = service_info.name or "Acton II"
+            name = service_info.name or "Marshall Speaker"
             discovered[address] = name
         return discovered

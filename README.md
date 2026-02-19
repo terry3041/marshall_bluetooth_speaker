@@ -8,7 +8,8 @@ A Home Assistant integration for controlling Marshall Bluetooth speakers over BL
 - 🔈 **Volume Control**: Adjust speaker volume with real-time feedback
 - 💡 **LED Brightness**: Control speaker LED brightness (0-35 range)
 - 🎵 **Audio Source Selection**: Switch between Bluetooth, Aux, and RCA inputs (model-dependent)
-- 🎧 **EQ Presets**: Select equalizer presets - Flat, Bright, Warm, Voice (Stanmore II only)
+- �️ **5-Band Equaliser**: Individual control for Bass, Low-Mid, Mid, High-Mid, and Treble (0-10 range, 5 is neutral)
+- 🔔 **Interaction Sounds**: Toggle device interaction sounds on/off
 - 📊 **Media Metadata**: Display track title, artist, and album information
 - 🔌 **Connection Status**: Track device connectivity
 - 🏷️ **Device Information**: Model, serial number, firmware, and hardware details
@@ -18,8 +19,8 @@ A Home Assistant integration for controlling Marshall Bluetooth speakers over BL
 
 | Model | Features |
 |-------|----------|
-| **Acton II** | Volume, LED Brightness, Audio Source (Bluetooth/Aux), Media Controls, Media Info |
-| **Stanmore II** | Volume, LED Brightness, Audio Source (Bluetooth/Aux/RCA), EQ Presets, Media Controls, Media Info |
+| **Acton II** | Volume, LED Brightness, Audio Source (Bluetooth/Aux), 5-Band EQ, Interaction Sounds, Media Controls, Media Info |
+| **Stanmore II** | Volume, LED Brightness, Audio Source (Bluetooth/Aux/RCA), 5-Band EQ, Interaction Sounds, Media Controls, Media Info |
 
 ## Installation
 
@@ -65,10 +66,14 @@ If auto-discovery doesn't work:
 
 ### Numbers
 - **LED Brightness**: Adjustable LED brightness (0-35)
+- **EQ Bass**: Bass equaliser band (0-10, where 5 is neutral)
+- **EQ Low-Mid**: Low-mid equaliser band (0-10, where 5 is neutral)
+- **EQ Mid**: Mid equaliser band (0-10, where 5 is neutral)
+- **EQ High-Mid**: High-mid equaliser band (0-10, where 5 is neutral)
+- **EQ Treble**: Treble equaliser band (0-10, where 5 is neutral)
 
-### Selectors
-- **Audio Source**: Bluetooth, Aux, RCA (model-dependent)
-- **EQ Preset**: Flat, Bright, Warm, Voice (Stanmore II only)
+### Switches
+- **Interaction Sounds**: Enable/disable speaker interaction sounds (button press and notification sounds)
 
 ### Sensors (Diagnostic Category)
 - **Device Name**: Speaker name from device
@@ -110,13 +115,28 @@ data:
   option: "Aux"
 ```
 
-### Set EQ Preset (Stanmore II)
+### Adjust EQ Bands
 ```yaml
-service: select.select_option
+# Set Bass band to maximum
+service: number.set_value
 target:
-  entity_id: select.stanmore_ii_eq_preset
+  entity_id: number.acton_ii_eq_bass
 data:
-  option: "Bright"
+  value: 10
+
+# Set Treble to neutral
+service: number.set_value
+target:
+  entity_id: number.acton_ii_eq_treble
+data:
+  value: 5
+```
+
+### Toggle Interaction Sounds
+```yaml
+service: switch.turn_off
+target:
+  entity_id: switch.acton_ii_interaction_sounds
 ```
 
 ### Adjust LED Brightness
@@ -144,10 +164,6 @@ data:
 - Ensure the characteristic is writable
 - Check the device is responding to commands (LED should blink)
 - Verify the speaker model supports the feature
-
-### Missing EQ Preset Select
-- This is only available on Stanmore II models
-- Check the device model in the entity details
 
 ## Contributing
 

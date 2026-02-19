@@ -7,40 +7,36 @@ from typing import TYPE_CHECKING
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
 
-from .const import AUDIO_SOURCE_COMMANDS, EQ_PRESETS
-from .entity import ActonEntity
+from .const import AUDIO_SOURCE_COMMANDS
+from .entity import MarshallEntity
 from .model_config import get_model_features
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-    from .coordinator import ActonDataUpdateCoordinator
-    from .data import ActonConfigEntry
+    from .coordinator import MarshallDataUpdateCoordinator
+    from .data import MarshallConfigEntry
 
 
 @dataclass(frozen=True, kw_only=True)
-class ActonSelectEntityDescription(SelectEntityDescription):
-    """Describes an Acton select entity."""
+class MarshallSelectEntityDescription(SelectEntityDescription):
+    """Describes a Marshall select entity."""
 
 
-ENTITY_DESCRIPTIONS: tuple[ActonSelectEntityDescription, ...] = (
-    ActonSelectEntityDescription(
+ENTITY_DESCRIPTIONS: tuple[MarshallSelectEntityDescription, ...] = (
+    MarshallSelectEntityDescription(
         key="source",
         translation_key="source",
+        icon="mdi:input-source",
         options=list(AUDIO_SOURCE_COMMANDS.keys()),
-    ),
-    ActonSelectEntityDescription(
-        key="eq_preset",
-        translation_key="eq_preset",
-        options=list(EQ_PRESETS.keys()),
     ),
 )
 
 
 async def async_setup_entry(
     hass: HomeAssistant,  # noqa: ARG001 Unused function argument: `hass`
-    entry: ActonConfigEntry,
+    entry: MarshallConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up select entities."""
@@ -64,35 +60,25 @@ async def async_setup_entry(
 
             if options:  # Only add if we have at least one option
                 entities_to_add.append(
-                    ActonSelectEntity(
+                    MarshallSelectEntity(
                         coordinator=coordinator,
                         entity_description=entity_description,
                         options=options,
-                    )
-                )
-        elif entity_description.key == "eq_preset":
-            # EQ preset only available for Stanmore II
-            if model_features.get("eq"):
-                entities_to_add.append(
-                    ActonSelectEntity(
-                        coordinator=coordinator,
-                        entity_description=entity_description,
-                        options=list(EQ_PRESETS.keys()),
                     )
                 )
 
     async_add_entities(entities_to_add)
 
 
-class ActonSelectEntity(ActonEntity, SelectEntity):
+class MarshallSelectEntity(MarshallEntity, SelectEntity):
     """Representation of a select entity for Marshall speakers."""
 
-    entity_description: ActonSelectEntityDescription
+    entity_description: MarshallSelectEntityDescription
 
     def __init__(
         self,
-        coordinator: ActonDataUpdateCoordinator,
-        entity_description: ActonSelectEntityDescription,
+        coordinator: MarshallDataUpdateCoordinator,
+        entity_description: MarshallSelectEntityDescription,
         options: list[str],
     ) -> None:
         """Initialize the select entity."""
@@ -108,13 +94,9 @@ class ActonSelectEntity(ActonEntity, SelectEntity):
         """Return the current selected option."""
         if self.entity_description.key == "source":
             return self.coordinator.state.source
-        if self.entity_description.key == "eq_preset":
-            return self.coordinator.state.eq_preset
         return None
 
     async def async_select_option(self, option: str) -> None:
         """Select new option."""
         if self.entity_description.key == "source":
             await self.coordinator.async_set_audio_source(option)
-        if self.entity_description.key == "eq_preset":
-            await self.coordinator.async_set_eq_preset(option)

@@ -1,4 +1,4 @@
-"""BLE client for Marshall Acton II."""
+"""BLE client for Marshall speakers."""
 
 from __future__ import annotations
 
@@ -17,16 +17,16 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 
-class ActonBleError(Exception):
+class MarshallBleError(Exception):
     """Base error for BLE operations."""
 
 
-class ActonBleClient:
-    """Minimal BLE client wrapper for Acton II."""
+class MarshallBleClient:
+    """Minimal BLE client wrapper for Marshall speakers."""
 
     def __init__(self, hass: HomeAssistant, address: str, name: str) -> None:
         """
-        Initialize the Acton BLE client.
+        Initialize the Marshall BLE client.
 
         Args:
             hass: The Home Assistant instance.
@@ -58,7 +58,7 @@ class ActonBleClient:
         )
         if device is None:
             msg = "Device not found for address"
-            raise ActonBleError(msg)
+            raise MarshallBleError(msg)
 
         self._client = BleakClient(device)
         try:
@@ -66,7 +66,7 @@ class ActonBleClient:
             await self._ensure_services()
         except BleakError as exc:
             msg = "Failed to connect"
-            raise ActonBleError(msg) from exc
+            raise MarshallBleError(msg) from exc
 
     async def async_disconnect(self) -> None:
         """Disconnect from the BLE device."""
@@ -90,7 +90,7 @@ class ActonBleClient:
                 await self._client.get_services()
         except BleakError as exc:
             msg = "Failed to discover services"
-            raise ActonBleError(msg) from exc
+            raise MarshallBleError(msg) from exc
         self._services_loaded = True
 
     def _has_characteristic(self, uuid: str) -> bool:
@@ -104,10 +104,10 @@ class ActonBleClient:
         await self._ensure_services()
         if not self._has_characteristic(uuid):
             msg = "Characteristic not found"
-            raise ActonBleError(msg)
+            raise MarshallBleError(msg)
         if not self._client:
             msg = "Client unavailable"
-            raise ActonBleError(msg)
+            raise MarshallBleError(msg)
         await self._client.start_notify(uuid, notify)
 
     async def async_start_notify(
@@ -119,7 +119,7 @@ class ActonBleClient:
         await self.async_connect()
         if not self._client:
             msg = "Client unavailable"
-            raise ActonBleError(msg)
+            raise MarshallBleError(msg)
 
         if uuid in self._notifying:
             return
@@ -135,14 +135,14 @@ class ActonBleClient:
                 await self._start_notify_with_characteristic(uuid, _notify)
             except BleakError as exc:
                 msg = "Failed to start notification"
-                raise ActonBleError(msg) from exc
-            except ActonBleError as exc:
+                raise MarshallBleError(msg) from exc
+            except MarshallBleError as exc:
                 LOGGER.debug("Notify unavailable for %s: %s", uuid, exc)
                 raise
         except BleakError as exc:
             LOGGER.debug("Notify error for %s: %s", uuid, exc)
             msg = "Failed to start notification"
-            raise ActonBleError(msg) from exc
+            raise MarshallBleError(msg) from exc
         self._notifying.add(uuid)
 
     async def async_read(self, uuid: str) -> bytes:
@@ -150,7 +150,7 @@ class ActonBleClient:
         await self.async_connect()
         if not self._client:
             msg = "Client unavailable"
-            raise ActonBleError(msg)
+            raise MarshallBleError(msg)
         try:
             await self._ensure_services()
             return bytes(await self._client.read_gatt_char(uuid))
@@ -161,10 +161,10 @@ class ActonBleClient:
                 return bytes(await self._client.read_gatt_char(uuid))
             except BleakError as exc:
                 msg = "Failed to read characteristic"
-                raise ActonBleError(msg) from exc
+                raise MarshallBleError(msg) from exc
         except BleakError as exc:
             msg = "Failed to read characteristic"
-            raise ActonBleError(msg) from exc
+            raise MarshallBleError(msg) from exc
 
     async def async_write(
         self, uuid: str, data: bytes, *, response: bool = False
@@ -173,7 +173,7 @@ class ActonBleClient:
         await self.async_connect()
         if not self._client:
             msg = "Client unavailable"
-            raise ActonBleError(msg)
+            raise MarshallBleError(msg)
         try:
             await self._ensure_services()
             await self._client.write_gatt_char(uuid, data, response=response)
@@ -184,11 +184,11 @@ class ActonBleClient:
                 await self._client.write_gatt_char(uuid, data, response=response)
             except BleakError as exc:
                 msg = "Failed to write characteristic"
-                raise ActonBleError(msg) from exc
+                raise MarshallBleError(msg) from exc
         except BleakError as exc:
             msg = "Failed to write characteristic"
-            raise ActonBleError(msg) from exc
+            raise MarshallBleError(msg) from exc
 
 
 # Alias for backward compatibility
-BleClient = ActonBleClient
+BleClient = MarshallBleClient

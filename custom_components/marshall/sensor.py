@@ -10,15 +10,15 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import EntityCategory
 
-from .entity import ActonEntity
+from .entity import MarshallEntity
 from .model_config import get_model_features
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-    from .coordinator import ActonDataUpdateCoordinator
-    from .data import ActonConfigEntry
+    from .coordinator import MarshallDataUpdateCoordinator
+    from .data import MarshallConfigEntry
 
 ENTITY_DESCRIPTIONS = (
     SensorEntityDescription(
@@ -50,7 +50,7 @@ ENTITY_DESCRIPTIONS = (
 
 async def async_setup_entry(
     hass: HomeAssistant,  # noqa: ARG001 Unused function argument: `hass`
-    entry: ActonConfigEntry,
+    entry: MarshallConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the sensor platform."""
@@ -60,7 +60,7 @@ async def async_setup_entry(
     get_model_features(coordinator.state.model)
 
     async_add_entities(
-        ActonSensor(
+        MarshallSensor(
             coordinator=coordinator,
             entity_description=entity_description,
         )
@@ -68,12 +68,12 @@ async def async_setup_entry(
     )
 
 
-class ActonSensor(ActonEntity, SensorEntity):
+class MarshallSensor(MarshallEntity, SensorEntity):
     """Marshall speakers sensor class."""
 
     def __init__(
         self,
-        coordinator: ActonDataUpdateCoordinator,
+        coordinator: MarshallDataUpdateCoordinator,
         entity_description: SensorEntityDescription,
     ) -> None:
         """Initialize the sensor class."""

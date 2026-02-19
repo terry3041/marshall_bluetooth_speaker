@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-19
+
+### Added
+- **5-Band Equaliser Control**
+  - Individual number entities for each EQ band (Bass, Low-Mid, Mid, High-Mid, Treble)
+  - Real-time EQ updates via BLE characteristic subscription
+  - Band values 0-10 range where 5 is neutral
+- **Interaction Sounds Toggle**
+  - Switch entity to enable/disable device interaction sounds
+  - Model-specific feature availability (all models supported)
+- **Icon Improvements**
+  - Source select entity icon (mdi:input-source)
+  - Interaction sounds switch icon (mdi:bell-ring)
+
+### Changed
+- Removed EQ preset selector (replaced with 5-band individual controls for more granular control)
+- Enhanced BLE notification handling for EQ characteristic updates
+
+### Fixed
+- EQ control refactored from preset-based to individual band configuration
+
 ## [0.1.0] - 2026-02-19
 
 ### Added

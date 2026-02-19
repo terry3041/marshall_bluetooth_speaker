@@ -11,15 +11,15 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.helpers.entity import EntityCategory
 
-from .entity import ActonEntity
+from .entity import MarshallEntity
 from .model_config import get_model_features
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-    from .coordinator import ActonDataUpdateCoordinator
-    from .data import ActonConfigEntry
+    from .coordinator import MarshallDataUpdateCoordinator
+    from .data import MarshallConfigEntry
 
 ENTITY_DESCRIPTIONS = (
     BinarySensorEntityDescription(
@@ -33,7 +33,7 @@ ENTITY_DESCRIPTIONS = (
 
 async def async_setup_entry(
     hass: HomeAssistant,  # noqa: ARG001 Unused function argument: `hass`
-    entry: ActonConfigEntry,
+    entry: MarshallConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the binary_sensor platform."""
@@ -43,7 +43,7 @@ async def async_setup_entry(
     get_model_features(coordinator.state.model)
 
     async_add_entities(
-        ActonBinarySensor(
+        MarshallBinarySensor(
             coordinator=coordinator,
             entity_description=entity_description,
         )
@@ -51,12 +51,12 @@ async def async_setup_entry(
     )
 
 
-class ActonBinarySensor(ActonEntity, BinarySensorEntity):
+class MarshallBinarySensor(MarshallEntity, BinarySensorEntity):
     """Marshall speakers binary_sensor class."""
 
     def __init__(
         self,
-        coordinator: ActonDataUpdateCoordinator,
+        coordinator: MarshallDataUpdateCoordinator,
         entity_description: BinarySensorEntityDescription,
     ) -> None:
         """Initialize the binary_sensor class."""

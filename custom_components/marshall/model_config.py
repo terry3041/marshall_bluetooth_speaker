@@ -16,6 +16,7 @@ MODEL_FEATURES: dict[str, dict[str, bool]] = {
         "bluetooth": True,
         "aux_input": True,
         "eq": False,
+        "interaction_sounds": True,
     },
     MODEL_STANMORE_II: {
         "rca_input": True,
@@ -23,6 +24,7 @@ MODEL_FEATURES: dict[str, dict[str, bool]] = {
         "bluetooth": True,
         "aux_input": True,
         "eq": True,
+        "interaction_sounds": True,
     },
 }
 
@@ -33,6 +35,7 @@ DEFAULT_MODEL_FEATURES: dict[str, bool] = {
     "bluetooth": True,
     "aux_input": True,
     "eq": False,
+    "interaction_sounds": True,
 }
 
 
