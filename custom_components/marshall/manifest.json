@@ -13,8 +13,8 @@
   "dependencies": [
     "bluetooth"
   ],
-  "documentation": "https://github.com/elrobertocarlos/marchall_bluetooth_speaker",
+  "documentation": "https://github.com/elrobertocarlos/marshall_bluetooth_speaker",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/elrobertocarlos/marchall_bluetooth_speaker/issues",
-  "version": "0.2.0"
+  "issue_tracker": "https://github.com/elrobertocarlos/marshall_bluetooth_speaker/issues",
+  "version": "0.2.1"
 }

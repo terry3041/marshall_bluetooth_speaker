@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from bleak import BleakClient
 from bleak.exc import BleakCharacteristicNotFoundError, BleakError
+from bleak_retry_connector import establish_connection
 from homeassistant.components import bluetooth
 
 from .const import LOGGER
@@ -60,10 +61,14 @@ class MarshallBleClient:
             msg = "Device not found for address"
             raise MarshallBleError(msg)
 
-        self._client = BleakClient(device)
         try:
-            await self._client.connect()
-            await self._ensure_services()
+            self._client = await establish_connection(
+                BleakClient,
+                device,
+                name=self.name,
+                max_attempts=3,
+                logger=LOGGER,
+            )
         except BleakError as exc:
             msg = "Failed to connect"
             raise MarshallBleError(msg) from exc
@@ -82,17 +87,6 @@ class MarshallBleClient:
         self._notifying.clear()
         self._services_loaded = False
 
-    async def _ensure_services(self) -> None:
-        if not self._client or self._services_loaded:
-            return
-        try:
-            if self._client.services is None:
-                await self._client.get_services()
-        except BleakError as exc:
-            msg = "Failed to discover services"
-            raise MarshallBleError(msg) from exc
-        self._services_loaded = True
-
     def _has_characteristic(self, uuid: str) -> bool:
         if not self._client or self._client.services is None:
             return False
@@ -101,7 +95,6 @@ class MarshallBleClient:
     async def _start_notify_with_characteristic(
         self, uuid: str, notify: Callable[[object, bytearray], None]
     ) -> None:
-        await self._ensure_services()
         if not self._has_characteristic(uuid):
             msg = "Characteristic not found"
             raise MarshallBleError(msg)
@@ -152,12 +145,10 @@ class MarshallBleClient:
             msg = "Client unavailable"
             raise MarshallBleError(msg)
         try:
-            await self._ensure_services()
             return bytes(await self._client.read_gatt_char(uuid))
         except BleakCharacteristicNotFoundError:
             self._services_loaded = False
             try:
-                await self._ensure_services()
                 return bytes(await self._client.read_gatt_char(uuid))
             except BleakError as exc:
                 msg = "Failed to read characteristic"
@@ -175,12 +166,10 @@ class MarshallBleClient:
             msg = "Client unavailable"
             raise MarshallBleError(msg)
         try:
-            await self._ensure_services()
             await self._client.write_gatt_char(uuid, data, response=response)
         except BleakCharacteristicNotFoundError:
             self._services_loaded = False
             try:
-                await self._ensure_services()
                 await self._client.write_gatt_char(uuid, data, response=response)
             except BleakError as exc:
                 msg = "Failed to write characteristic"
