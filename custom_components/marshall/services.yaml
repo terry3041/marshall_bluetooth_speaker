@@ -3,9 +3,6 @@
 enter_pairing_mode:
   name: Enter pairing mode
   description: Put the speaker into Bluetooth pairing mode to connect new devices.
-  target:
-    device:
-      integration: marshall
   fields:
     device_id:
       name: Device
@@ -19,9 +16,6 @@ enter_pairing_mode:
 set_device_name:
   name: Set device name
   description: Change the device name displayed on the speaker.
-  target:
-    device:
-      integration: marshall
   fields:
     device_id:
       name: Device
@@ -42,9 +36,6 @@ set_device_name:
 set_equaliser_profile:
   name: Set equaliser profile
   description: Set the 5-band equaliser profile (Bass, Low-Mid, Mid, High-Mid, Treble).
-  target:
-    device:
-      integration: marshall
   fields:
     device_id:
       name: Device
