@@ -154,8 +154,39 @@ class MarshallBleClient:
                 msg = "Failed to read characteristic"
                 raise MarshallBleError(msg) from exc
         except BleakError as exc:
+            LOGGER.debug("Read error for %s: %s", uuid, exc)
             msg = "Failed to read characteristic"
             raise MarshallBleError(msg) from exc
+
+    async def async_read_by_handle(self, handle: int) -> bytes:
+        """Read a characteristic by its handle (for duplicate UUIDs)."""
+        await self.async_connect()
+        if not self._client:
+            msg = "Client unavailable"
+            raise MarshallBleError(msg)
+        try:
+            return bytes(await self._client.read_gatt_char(handle))
+        except BleakError as exc:
+            LOGGER.debug("Read error for handle %d: %s", handle, exc)
+            msg = "Failed to read characteristic"
+            raise MarshallBleError(msg) from exc
+
+    async def async_read_from_service(
+        self, service_uuid: str, char_uuid: str
+    ) -> bytes:
+        """Read a characteristic from a specific service (avoids duplicate UUIDs)."""
+        await self.async_connect()
+        if not self._client or self._client.services is None:
+            msg = "Client unavailable or services not discovered"
+            raise MarshallBleError(msg)
+        char_uuid_lower = char_uuid.lower()
+        for service in self._client.services:
+            if service.uuid.lower() == service_uuid.lower():
+                for char in service.characteristics:
+                    if char.uuid.lower() == char_uuid_lower:
+                        return bytes(await self._client.read_gatt_char(char))
+        msg = f"Characteristic {char_uuid} not found in service {service_uuid}"
+        raise MarshallBleError(msg)
 
     async def async_write(
         self, uuid: str, data: bytes, *, response: bool = False

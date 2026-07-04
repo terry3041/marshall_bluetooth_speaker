@@ -15,6 +15,7 @@ from homeassistant.components.media_player.const import (
 from .ble import MarshallBleError
 from .const import (
     CHAR_CONTROL,
+    CHAR_FCCD_AUDIO_CONTROL,
     CHAR_VOLUME,
     CMD_NEXT,
     CMD_PAUSE,
@@ -35,16 +36,13 @@ if TYPE_CHECKING:
 
 
 async def async_setup_entry(
-    hass: HomeAssistant,  # noqa: ARG001 Unused function argument: `hass`
+    hass: HomeAssistant,  # noqa: ARG001
     entry: MarshallConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the media_player platform."""
     coordinator = entry.runtime_data.coordinator
-
-    # Get features supported by this model (for future use in filtering)
     get_model_features(coordinator.state.model)
-
     async_add_entities([MarshallMediaPlayer(coordinator)])
 
 
@@ -92,20 +90,9 @@ class MarshallMediaPlayer(MarshallEntity, MediaPlayerEntity):
     @property
     def media_title(self) -> str | None:
         """Return the title of current playing media."""
-        # Only show media info when source is Bluetooth
         if self.coordinator.state.source != "Bluetooth":
             return None
         return self.coordinator.state.media_info
-
-    @property
-    def media_artist(self) -> str | None:
-        """Return the artist of current playing media."""
-        return None
-
-    @property
-    def media_album_name(self) -> str | None:
-        """Return the album name of current playing media."""
-        return None
 
     async def async_turn_on(self) -> None:
         """Turn on the media player."""
@@ -117,24 +104,30 @@ class MarshallMediaPlayer(MarshallEntity, MediaPlayerEntity):
 
     async def async_media_play(self) -> None:
         """Send play command to the media player."""
-        await self._safe_write(CHAR_CONTROL, bytes([CMD_PLAY]), response=True)
+        uuid = self.coordinator._char(CHAR_CONTROL, CHAR_FCCD_AUDIO_CONTROL)
+        await self._safe_write(uuid, bytes([CMD_PLAY]), response=True)
 
     async def async_media_pause(self) -> None:
         """Send pause command to the media player."""
-        await self._safe_write(CHAR_CONTROL, bytes([CMD_PAUSE]), response=True)
+        uuid = self.coordinator._char(CHAR_CONTROL, CHAR_FCCD_AUDIO_CONTROL)
+        await self._safe_write(uuid, bytes([CMD_PAUSE]), response=True)
 
     async def async_media_next_track(self) -> None:
         """Send next track command to the media player."""
-        await self._safe_write(CHAR_CONTROL, bytes([CMD_NEXT]), response=True)
+        uuid = self.coordinator._char(CHAR_CONTROL, CHAR_FCCD_AUDIO_CONTROL)
+        await self._safe_write(uuid, bytes([CMD_NEXT]), response=True)
 
     async def async_media_previous_track(self) -> None:
         """Send previous track command to the media player."""
-        await self._safe_write(CHAR_CONTROL, bytes([CMD_PREVIOUS]), response=True)
+        uuid = self.coordinator._char(CHAR_CONTROL, CHAR_FCCD_AUDIO_CONTROL)
+        await self._safe_write(uuid, bytes([CMD_PREVIOUS]), response=True)
 
     async def async_set_volume_level(self, volume: float) -> None:
         """Set the volume level (0.0 to 1.0)."""
         step = round(max(0.0, min(1.0, volume)) * VOLUME_MAX)
-        await self._safe_write(CHAR_VOLUME, bytes([step]), response=True)
+        from .const import CHAR_FCCD_VOLUME
+        uuid = self.coordinator._char(CHAR_VOLUME, CHAR_FCCD_VOLUME)
+        await self._safe_write(uuid, bytes([step]), response=True)
 
     async def _safe_write(
         self, uuid: str, data: bytes, *, response: bool = False

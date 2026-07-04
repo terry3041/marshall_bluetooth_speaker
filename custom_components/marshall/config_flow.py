@@ -12,7 +12,7 @@ from homeassistant.helpers import selector
 if TYPE_CHECKING:
     from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 
-from .const import CONF_ADDRESS, CONF_NAME, DOMAIN, FE8F_SERVICE_UUID
+from .const import CONF_ADDRESS, CONF_NAME, DOMAIN, FCCD_SERVICE_UUID, FE8F_SERVICE_UUID
 
 SHORT_UUID_LENGTH = 4
 
@@ -35,7 +35,8 @@ class MarshallFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             discovery_info = None
 
         if discovery_info is not None:
-            if not self._supports_service(
+            if not self._is_marshall_device(
+                discovery_info.name,
                 discovery_info.service_uuids,
                 discovery_info.service_data,
             ):
@@ -161,12 +162,32 @@ class MarshallFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         short_uuids = cls._short_service_uuids(service_uuids)
         if service_data:
             short_uuids.update(cls._short_service_uuids(list(service_data.keys())))
-        return FE8F_SERVICE_UUID in short_uuids
+        return FE8F_SERVICE_UUID in short_uuids or FCCD_SERVICE_UUID in short_uuids
+
+    @classmethod
+    def _is_marshall_device(
+        cls,
+        name: str | None,
+        service_uuids: list[str],
+        service_data: dict[str, bytes] | None = None,
+    ) -> bool:
+        """Check if device is a Marshall speaker by service UUID or name."""
+        if cls._supports_service(service_uuids, service_data):
+            return True
+        if name:
+            upper = name.upper()
+            for prefix in ("ACTON", "STANMORE", "WOBURN", "MARSHALL",
+                           "WILLEN", "MIDDLETON", "KILBURN", "EMBERTON",
+                           "STOCKWELL", "TURNER", "BROMLEY"):
+                if prefix in upper:
+                    return True
+        return False
 
     async def _async_get_discovered(self) -> dict[str, str]:
         discovered: dict[str, str] = {}
         for service_info in bluetooth.async_discovered_service_info(self.hass):
-            if not self._supports_service(
+            if not self._is_marshall_device(
+                service_info.name,
                 service_info.service_uuids,
                 service_info.service_data,
             ):

@@ -15,6 +15,12 @@ from .const import (
     CHAR_CONTROL,
     CHAR_DEVICE_NAME,
     CHAR_EQ,
+    CHAR_FCCD_AUDIO_CONTROL,
+    CHAR_FCCD_EQ,
+    CHAR_FCCD_NOW_PLAYING,
+    CHAR_FCCD_PAIRING,
+    CHAR_FCCD_SOURCE,
+    CHAR_FCCD_VOLUME,
     CHAR_FIRMWARE_REV,
     CHAR_HARDWARE_REV,
     CHAR_LED_BRIGHTNESS,
@@ -31,7 +37,6 @@ from .const import (
     MEDIA_INFO_HEADER_SIZE,
     MEDIA_INFO_MAX_STRING_LENGTH,
     MEDIA_INFO_MIN_PARTS_FOR_FULL_FORMAT,
-    NOTIFY_CHARACTERISTICS,
     PLAY_STATUS_MAPPING,
     STATUS_INDEX_INTERACTION_SOUND,
     STATUS_INDEX_PLAY_STATUS,
@@ -41,12 +46,13 @@ from .data import MarshallState
 
 MIN_DEVICE_NAME_DATA_LENGTH = 2
 EQ_BAND_MAX_VALUE = 10
+# 0xFF means "unused/neutral" for FCCD EQ bands
+EQ_BAND_UNUSED = 0xFF
 
 if TYPE_CHECKING:
     from .data import MarshallConfigEntry
 
 
-# https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
 class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
     """Class to manage BLE state for Marshall speakers."""
 
@@ -58,16 +64,42 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
         self.state = MarshallState()
         self._static_loaded = False
         self._notify_started = False
+        self._is_fccd = False  # True for Gen III+ (FCCD protocol), False for Gen II (FE8F)
 
     @property
     def client(self) -> BleClient:
         """Return the BLE client instance."""
         return self.config_entry.runtime_data.client
 
+    def _char(self, fe8f_uuid: str, fccd_uuid: str | None = None) -> str:
+        """Return the correct characteristic UUID for the detected protocol."""
+        if self._is_fccd and fccd_uuid is not None:
+            return fccd_uuid
+        return fe8f_uuid
+
+    @property
+    def _notify_chars(self) -> set[str]:
+        """Return characteristic UUIDs to subscribe to based on protocol."""
+        if self._is_fccd:
+            return {
+                CHAR_FCCD_VOLUME,
+                CHAR_FCCD_AUDIO_CONTROL,
+                CHAR_FCCD_NOW_PLAYING,
+                CHAR_FCCD_EQ,
+                CHAR_FCCD_SOURCE,
+            }
+        return {
+            CHAR_VOLUME,
+            CHAR_CONTROL,
+            CHAR_MEDIA_INFO,
+            CHAR_EQ,
+        }
+
     async def _async_update_data(self) -> MarshallState:
         """Refresh state via BLE reads and notifications."""
         try:
             await self.client.async_connect()
+            await self._detect_protocol()
             await self._ensure_notifications()
             await self._refresh_dynamic_state()
             if not self._static_loaded:
@@ -79,10 +111,22 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
 
         return self.state
 
+    async def _detect_protocol(self) -> None:
+        """Detect whether device uses FCCD (Gen III) or FE8F (Gen II) protocol."""
+        if self._notify_started:
+            return
+        self._is_fccd = False
+        try:
+            await self.client.async_read(CHAR_FCCD_VOLUME)
+            self._is_fccd = True
+            LOGGER.debug("Detected FCCD protocol (Gen III+)")
+        except MarshallBleError:
+            LOGGER.debug("Using FE8F protocol (Gen II)")
+
     async def _ensure_notifications(self) -> None:
         if self._notify_started:
             return
-        for uuid in NOTIFY_CHARACTERISTICS:
+        for uuid in self._notify_chars:
             try:
                 await self.client.async_start_notify(uuid, self._handle_notify)
             except MarshallBleError as exception:
@@ -90,17 +134,33 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
         self._notify_started = True
 
     async def _refresh_dynamic_state(self) -> None:
-        volume = await self._safe_read(CHAR_VOLUME)
+        # Volume
+        vol_uuid = self._char(CHAR_VOLUME, CHAR_FCCD_VOLUME)
+        volume = await self._safe_read(vol_uuid)
         if volume:
             self.state.volume_step = volume[0]
 
-        battery = await self._safe_read(CHAR_BATTERY_LEVEL)
-        if battery:
-            self.state.battery_level = battery[0]
+        # Battery (only on FE8F devices)
+        if not self._is_fccd:
+            battery = await self._safe_read(CHAR_BATTERY_LEVEL)
+            if battery:
+                self.state.battery_level = battery[0]
 
-        # Read control status for source and play state
-        control = await self._safe_read(CHAR_CONTROL)
-        if control and len(control) > STATUS_INDEX_INTERACTION_SOUND:
+        # Control / Audio status
+        ctrl_uuid = self._char(CHAR_CONTROL, CHAR_FCCD_AUDIO_CONTROL)
+        control = await self._safe_read(ctrl_uuid)
+        if self._is_fccd:
+            # FCCD: audio control byte represents play/pause state directly
+            if control and len(control) >= 1:
+                self.state.is_playing = control[0] == 0x01
+            # Source
+            src_uuid = self._char(CHAR_CONTROL, CHAR_FCCD_SOURCE)
+            src_data = await self._safe_read(src_uuid)
+            if src_data and len(src_data) >= 1:
+                self.state.source = {0x00: "Bluetooth", 0x01: "Aux"}.get(
+                    src_data[0], f"0x{src_data[0]:02X}"
+                )
+        elif control and len(control) > STATUS_INDEX_INTERACTION_SOUND:
             self.state.source = AUDIO_SOURCE_MAPPING.get(control[STATUS_INDEX_SOURCE])
             status = PLAY_STATUS_MAPPING.get(control[STATUS_INDEX_PLAY_STATUS])
             self.state.is_playing = status == "playing" if status else None
@@ -114,43 +174,78 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
         )
         self.state.model = self._decode_str(await self._safe_read(CHAR_MODEL_NUMBER))
         self.state.serial = self._decode_str(await self._safe_read(CHAR_SERIAL_NUMBER))
-        self.state.firmware = self._decode_str(await self._safe_read(CHAR_FIRMWARE_REV))
+        self.state.firmware = self._decode_str(await self._safe_read_firmware())
         self.state.hardware = self._decode_str(await self._safe_read(CHAR_HARDWARE_REV))
 
-        # Read LED brightness
-        led_data = await self._safe_read(CHAR_LED_BRIGHTNESS)
-        if led_data:
-            self.state.led_brightness = led_data[0] - LED_BRIGHTNESS_OFFSET
+        # LED brightness (FE8F only)
+        if not self._is_fccd:
+            led_data = await self._safe_read(CHAR_LED_BRIGHTNESS)
+            if led_data:
+                self.state.led_brightness = led_data[0] - LED_BRIGHTNESS_OFFSET
 
-        # Read EQ bands
-        eq_data = await self._safe_read(CHAR_EQ)
+        # EQ bands
+        eq_uuid = self._char(CHAR_EQ, CHAR_FCCD_EQ)
+        eq_data = await self._safe_read(eq_uuid)
         if eq_data and len(eq_data) >= EQ_BAND_COUNT:
-            self.state.eq_bands = list(eq_data[:EQ_BAND_COUNT])
+            bands = []
+            for b in eq_data[:EQ_BAND_COUNT]:
+                bands.append(b if b != EQ_BAND_UNUSED else EQ_BAND_MAX_VALUE // 2)
+            self.state.eq_bands = bands
+
+    async def _safe_read_firmware(self) -> bytes:
+        """Read firmware revision, handling duplicate UUIDs on FCCD devices."""
+        try:
+            return await self.client.async_read(CHAR_FIRMWARE_REV)
+        except MarshallBleError:
+            pass
+        # On FCCD devices, firmware UUID (2A26) appears in both Device Info
+        # and Google Fast Pair services. Read from Device Info service directly.
+        try:
+            return await self.client.async_read_from_service(
+                "0000180a-0000-1000-8000-00805f9b34fb",
+                CHAR_FIRMWARE_REV,
+            )
+        except MarshallBleError:
+            return b""
 
     def _handle_notify(self, uuid: str, data: bytes) -> None:
-        if uuid == CHAR_VOLUME and data:
+        vol_uuid = self._char(CHAR_VOLUME, CHAR_FCCD_VOLUME)
+        ctrl_uuid = self._char(CHAR_CONTROL, CHAR_FCCD_AUDIO_CONTROL)
+        eq_uuid = self._char(CHAR_EQ, CHAR_FCCD_EQ)
+        media_uuid = self._char(CHAR_MEDIA_INFO, CHAR_FCCD_NOW_PLAYING)
+        src_uuid = self._char(CHAR_CONTROL, CHAR_FCCD_SOURCE)
+
+        if uuid == vol_uuid and data:
             self.state.volume_step = data[0]
-        elif uuid == CHAR_CONTROL:
-            self.state.control_raw = data
-            # Decode control status for source and play state
-            if data and len(data) > STATUS_INDEX_INTERACTION_SOUND:
-                self.state.source = AUDIO_SOURCE_MAPPING.get(data[STATUS_INDEX_SOURCE])
-                status = PLAY_STATUS_MAPPING.get(data[STATUS_INDEX_PLAY_STATUS])
-                self.state.is_playing = status == "playing" if status else None
-                self.state.interaction_sounds = bool(
-                    data[STATUS_INDEX_INTERACTION_SOUND]
-                )
-        elif uuid == CHAR_MEDIA_INFO:
-            # Ignore terminator pattern to keep the latest media info
+        elif uuid == ctrl_uuid:
+            if self._is_fccd:
+                if data and len(data) >= 1:
+                    self.state.is_playing = data[0] == 0x01
+            else:
+                self.state.control_raw = data
+                if data and len(data) > STATUS_INDEX_INTERACTION_SOUND:
+                    self.state.source = AUDIO_SOURCE_MAPPING.get(data[STATUS_INDEX_SOURCE])
+                    status = PLAY_STATUS_MAPPING.get(data[STATUS_INDEX_PLAY_STATUS])
+                    self.state.is_playing = status == "playing" if status else None
+                    self.state.interaction_sounds = bool(
+                        data[STATUS_INDEX_INTERACTION_SOUND]
+                    )
+        elif uuid == media_uuid:
             if not (
                 data == b"\x00\x00\x00\xff\x00\x00\x00\x00"
                 or data.startswith(b"\x00\x00\x00\xff")
             ):
                 self.state.media_info = self._decode_media_info(data)
-        elif uuid == CHAR_EQ:
-            # EQ data: 5 bytes, one for each band (0-10, where 5 is neutral)
+        elif uuid == src_uuid and self._is_fccd:
+            if data and len(data) >= 1:
+                self.state.source = {0x00: "Bluetooth", 0x01: "Aux"}.get(
+                    data[0], f"0x{data[0]:02X}"
+                )
+        elif uuid == eq_uuid:
             if data and len(data) >= EQ_BAND_COUNT:
-                bands = list(data[:EQ_BAND_COUNT])
+                bands = []
+                for b in data[:EQ_BAND_COUNT]:
+                    bands.append(b if b != EQ_BAND_UNUSED else EQ_BAND_MAX_VALUE // 2)
                 self.state.eq_bands = bands
         else:
             self.state.unknown_notify[uuid] = data
@@ -165,7 +260,10 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
             return b""
 
     async def async_set_led_brightness(self, brightness: int) -> None:
-        """Set LED brightness (0-35)."""
+        """Set LED brightness (0-35). FE8F only."""
+        if self._is_fccd:
+            LOGGER.debug("LED brightness not supported on FCCD devices")
+            return
         raw_value = brightness + LED_BRIGHTNESS_OFFSET
         try:
             await self.client.async_write(
@@ -178,6 +276,22 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
 
     async def async_set_audio_source(self, source: str) -> None:
         """Set audio source (Bluetooth, Aux, or RCA)."""
+        if self._is_fccd:
+            fccd_sources = {"Bluetooth": 0x00, "Aux": 0x01}
+            if source not in fccd_sources:
+                LOGGER.warning("Invalid audio source for FCCD device: %s", source)
+                return
+            command = fccd_sources[source]
+            try:
+                await self.client.async_write(
+                    CHAR_FCCD_SOURCE, bytes([command]), response=True
+                )
+                self.state.source = source
+                self.async_set_updated_data(self.state)
+            except MarshallBleError as exception:
+                LOGGER.debug("Failed to set audio source: %s", exception)
+            return
+
         if source not in AUDIO_SOURCE_COMMANDS:
             LOGGER.warning("Invalid audio source: %s", source)
             return
@@ -190,7 +304,10 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
             LOGGER.debug("Failed to set audio source: %s", exception)
 
     async def async_set_interaction_sounds(self, *, enabled: bool) -> None:
-        """Enable or disable interaction sounds."""
+        """Enable or disable interaction sounds. FE8F only."""
+        if self._is_fccd:
+            LOGGER.debug("Interaction sounds not supported on FCCD devices")
+            return
         try:
             command = 0x01 if enabled else 0x00
             await self.client.async_write(CHAR_CONTROL, bytes([command]), response=True)
@@ -202,8 +319,9 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
 
     async def async_enter_pairing_mode(self) -> None:
         """Request the speaker to enter Bluetooth pairing mode."""
+        pairing_uuid = self._char(CHAR_PAIRING, CHAR_FCCD_PAIRING)
         try:
-            await self.client.async_write(CHAR_PAIRING, bytes([0x01]), response=True)
+            await self.client.async_write(pairing_uuid, bytes([0x01]), response=True)
             LOGGER.info("Requested speaker to enter pairing mode")
         except MarshallBleError as exception:
             LOGGER.error("Failed to enter pairing mode: %s", exception)
@@ -215,7 +333,6 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
             LOGGER.warning("Device name cannot be empty")
             return
 
-        # Encode the name as UTF-8
         name_bytes = name.encode("utf-8")
         name_length = len(name_bytes)
 
@@ -227,20 +344,17 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
             name_bytes = name_bytes[:DEVICE_NAME_MAX_LENGTH]
             name_length = DEVICE_NAME_MAX_LENGTH
 
-        # Format: 0x01, length byte, then the name bytes
         data = bytes([0x01, name_length]) + name_bytes
 
         try:
             await self.client.async_write(CHAR_DEVICE_NAME, data, response=True)
 
-            # Read back the device name to confirm and update UI
             device_name_data = await self._safe_read(CHAR_DEVICE_NAME)
             if device_name_data:
                 self.state.device_name = self._decode_device_name(device_name_data)
             else:
                 self.state.device_name = name
 
-            # Push update to UI immediately
             self.async_set_updated_data(self.state)
             LOGGER.info("Set device name to: %s", name)
         except MarshallBleError as exception:
@@ -257,7 +371,6 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
             )
             return
 
-        # Validate and clamp band values
         validated_bands = []
         for i, value in enumerate(bands):
             if not isinstance(value, int) or value < 0 or value > EQ_BAND_MAX_VALUE:
@@ -270,11 +383,11 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
                 return
             validated_bands.append(value)
 
-        # Format: 5 bytes, one for each band (0-10)
         data = bytes(validated_bands)
+        eq_uuid = self._char(CHAR_EQ, CHAR_FCCD_EQ)
 
         try:
-            await self.client.async_write(CHAR_EQ, data, response=True)
+            await self.client.async_write(eq_uuid, data, response=True)
             self.state.eq_bands = validated_bands
             self.async_set_updated_data(self.state)
             LOGGER.info("Set EQ bands to: %s", validated_bands)
@@ -308,22 +421,9 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
 
     @staticmethod
     def _decode_media_info(data: bytes) -> str | None:
-        """
-        Decode media info characteristic data.
-
-        Format:
-        - 4 bytes: entry marker (00000001, 00000002, 00000003, or ff terminator)
-        - 2 bytes: type/format indicator (e.g., 006a)
-        - 2 bytes: string length (big-endian)
-        - N bytes: string data (UTF-8)
-        - Repeat entries or terminate with ff
-
-        Entries: Title (001), Artist (002), Album (003)
-        """
         if not data or len(data) < MEDIA_INFO_HEADER_SIZE:
             return None
 
-        # Check for empty/terminator pattern
         if data == b"\x00\x00\x00\xff\x00\x00\x00\x00" or data.startswith(
             b"\x00\x00\x00\xff"
         ):
@@ -334,26 +434,20 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
 
         try:
             while offset < len(data):
-                # Need at least header size: 4 (marker) + 2 (type) + 2 (length)
                 if offset + MEDIA_INFO_HEADER_SIZE > len(data):
                     break
 
-                # Read entry marker (4 bytes, big-endian)
                 marker = int.from_bytes(data[offset : offset + 4], "big")
                 offset += 4
 
-                # Check for terminator
                 if marker in {MEDIA_INFO_ENTRY_MARKER_TERMINATOR, 0}:
                     break
 
-                # Skip type indicator (2 bytes)
                 offset += 2
 
-                # Read string length (2 bytes, big-endian)
                 str_length = int.from_bytes(data[offset : offset + 2], "big")
                 offset += 2
 
-                # Sanity check for string length
                 if (
                     str_length == 0
                     or str_length > MEDIA_INFO_MAX_STRING_LENGTH
@@ -361,7 +455,6 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
                 ):
                     break
 
-                # Extract and decode string
                 string_data = data[offset : offset + str_length]
                 decoded = MarshallDataUpdateCoordinator._decode_str(string_data)
 
@@ -372,13 +465,11 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
         except (IndexError, ValueError, OverflowError):
             pass
 
-        # If we extracted parts, return them formatted
         if len(parts) >= MEDIA_INFO_MIN_PARTS_FOR_FULL_FORMAT:
-            return f"{parts[0]} - {parts[1]} ({parts[2]})"  # Title - Artist (Album)
+            return f"{parts[0]} - {parts[1]} ({parts[2]})"
         if parts:
             return " - ".join(parts)
 
-        # Fallback to hex representation only if we have actual data
         if data and data != b"\x00" * len(data):
             return data.hex()
 
