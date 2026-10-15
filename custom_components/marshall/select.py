@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
+from homeassistant.const import EntityCategory
 
-from .const import AUDIO_SOURCE_COMMANDS
+from .const import FEATURE_ROOM_PLACEMENT, ROOM_PLACEMENT_OPTIONS
 from .entity import MarshallEntity
-from .model_config import get_model_features
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -18,19 +18,28 @@ if TYPE_CHECKING:
     from .coordinator import MarshallDataUpdateCoordinator
     from .data import MarshallConfigEntry
 
+ROOM_PLACEMENT_VALUES = {
+    option: value for value, option in ROOM_PLACEMENT_OPTIONS.items()
+}
+
 
 @dataclass(frozen=True, kw_only=True)
 class MarshallSelectEntityDescription(SelectEntityDescription):
     """Describes a Marshall select entity."""
 
 
-ENTITY_DESCRIPTIONS: tuple[MarshallSelectEntityDescription, ...] = (
-    MarshallSelectEntityDescription(
-        key="source",
-        translation_key="source",
-        icon="mdi:input-source",
-        options=list(AUDIO_SOURCE_COMMANDS.keys()),
-    ),
+SOURCE_DESCRIPTION = MarshallSelectEntityDescription(
+    key="source",
+    translation_key="source",
+    icon="mdi:import",
+)
+
+ROOM_PLACEMENT_DESCRIPTION = MarshallSelectEntityDescription(
+    key="room_placement",
+    translation_key="room_placement",
+    icon="mdi:sofa-single",
+    entity_category=EntityCategory.CONFIG,
+    options=list(ROOM_PLACEMENT_OPTIONS.values()),
 )
 
 
@@ -42,36 +51,18 @@ async def async_setup_entry(
     """Set up select entities."""
     coordinator = entry.runtime_data.coordinator
 
-    # Get features supported by this model
-    model_features = get_model_features(coordinator.state.model)
-
-    # Filter entities based on model
-    entities_to_add = []
-    for entity_description in ENTITY_DESCRIPTIONS:
-        if entity_description.key == "source":
-            # Build options based on model features
-            options = []
-            if model_features.get("bluetooth"):
-                options.append("Bluetooth")
-            if model_features.get("aux_input"):
-                options.append("Aux")
-            if model_features.get("rca_input"):
-                options.append("RCA")
-
-            if options:  # Only add if we have at least one option
-                entities_to_add.append(
-                    MarshallSelectEntity(
-                        coordinator=coordinator,
-                        entity_description=entity_description,
-                        options=options,
-                    )
-                )
-
-    async_add_entities(entities_to_add)
+    entities: list[SelectEntity] = []
+    if len(coordinator.source_options) > 1:
+        entities.append(MarshallSourceSelect(coordinator, SOURCE_DESCRIPTION))
+    if coordinator.supports(FEATURE_ROOM_PLACEMENT):
+        entities.append(
+            MarshallRoomPlacementSelect(coordinator, ROOM_PLACEMENT_DESCRIPTION)
+        )
+    async_add_entities(entities)
 
 
 class MarshallSelectEntity(MarshallEntity, SelectEntity):
-    """Representation of a select entity for Marshall speakers."""
+    """Base select entity for Marshall speakers."""
 
     entity_description: MarshallSelectEntityDescription
 
@@ -79,7 +70,6 @@ class MarshallSelectEntity(MarshallEntity, SelectEntity):
         self,
         coordinator: MarshallDataUpdateCoordinator,
         entity_description: MarshallSelectEntityDescription,
-        options: list[str],
     ) -> None:
         """Initialize the select entity."""
         super().__init__(coordinator)
@@ -87,16 +77,36 @@ class MarshallSelectEntity(MarshallEntity, SelectEntity):
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}-{entity_description.key}"
         )
-        self._attr_options = options
+
+
+class MarshallSourceSelect(MarshallSelectEntity):
+    """Audio source select."""
+
+    @property
+    def options(self) -> list[str]:
+        """Return the selectable sources."""
+        return self.coordinator.source_options
 
     @property
     def current_option(self) -> str | None:
-        """Return the current selected option."""
-        if self.entity_description.key == "source":
-            return self.coordinator.state.source
-        return None
+        """Return the current source."""
+        source = self.coordinator.state.source
+        return source if source in self.options else None
 
     async def async_select_option(self, option: str) -> None:
-        """Select new option."""
-        if self.entity_description.key == "source":
-            await self.coordinator.async_set_audio_source(option)
+        """Select a new source."""
+        await self.coordinator.async_set_audio_source(option)
+
+
+class MarshallRoomPlacementSelect(MarshallSelectEntity):
+    """Placement compensation select (Gen III)."""
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the current placement."""
+        value = self.coordinator.state.room_placement
+        return ROOM_PLACEMENT_OPTIONS.get(value) if value is not None else None
+
+    async def async_select_option(self, option: str) -> None:
+        """Select a new placement."""
+        await self.coordinator.async_set_room_placement(ROOM_PLACEMENT_VALUES[option])

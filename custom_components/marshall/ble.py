@@ -41,6 +41,32 @@ class MarshallBleClient:
         self._client: BleakClient | None = None
         self._notifying: set[str] = set()
         self._services_loaded = False
+        self._disconnect_callbacks: list[Callable[[], None]] = []
+        self._expected_disconnect = False
+        self._established = False
+
+    def register_disconnect_callback(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """Register a callback for unexpected disconnects. Returns unregister."""
+        self._disconnect_callbacks.append(callback)
+        return lambda: self._disconnect_callbacks.remove(callback)
+
+    def _on_disconnected(self, _client: BleakClient) -> None:
+        self._notifying.clear()
+        self._services_loaded = False
+        # Ignore drops during connection attempts; establish_connection retries
+        # those itself and callers handle the final failure.
+        if self._expected_disconnect or not self._established:
+            return
+        self._established = False
+        LOGGER.debug("%s: unexpectedly disconnected", self.name)
+        for callback in list(self._disconnect_callbacks):
+            callback()
+
+    def has_characteristic(self, uuid: str) -> bool:
+        """Return whether the connected device exposes a characteristic."""
+        return self._has_characteristic(uuid)
 
     @property
     def is_connected(self) -> bool:
@@ -61,14 +87,17 @@ class MarshallBleClient:
             msg = "Device not found for address"
             raise MarshallBleError(msg)
 
+        self._expected_disconnect = False
         try:
             self._client = await establish_connection(
                 BleakClient,
                 device,
                 name=self.name,
+                disconnected_callback=self._on_disconnected,
                 max_attempts=3,
                 logger=LOGGER,
             )
+            self._established = True
         except BleakError as exc:
             msg = "Failed to connect"
             raise MarshallBleError(msg) from exc
@@ -77,6 +106,8 @@ class MarshallBleClient:
         """Disconnect from the BLE device."""
         if not self._client:
             return
+        self._expected_disconnect = True
+        self._established = False
         if self._client.is_connected:
             for uuid in list(self._notifying):
                 with contextlib.suppress(BleakError):
@@ -171,9 +202,7 @@ class MarshallBleClient:
             msg = "Failed to read characteristic"
             raise MarshallBleError(msg) from exc
 
-    async def async_read_from_service(
-        self, service_uuid: str, char_uuid: str
-    ) -> bytes:
+    async def async_read_from_service(self, service_uuid: str, char_uuid: str) -> bytes:
         """Read a characteristic from a specific service (avoids duplicate UUIDs)."""
         await self.async_connect()
         if not self._client or self._client.services is None:

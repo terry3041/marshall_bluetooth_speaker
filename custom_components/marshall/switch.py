@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.const import EntityCategory
 
+from .const import FEATURE_INTERACTION_SOUNDS, FEATURE_NIGHT_MODE
 from .entity import MarshallEntity
-from .model_config import get_model_features
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -26,10 +26,15 @@ class MarshallSwitchEntityDescription(SwitchEntityDescription):
 
 ENTITY_DESCRIPTIONS: tuple[MarshallSwitchEntityDescription, ...] = (
     MarshallSwitchEntityDescription(
-        key="interaction_sounds",
-        translation_key="interaction_sounds",
+        key=FEATURE_INTERACTION_SOUNDS,
+        translation_key=FEATURE_INTERACTION_SOUNDS,
         icon="mdi:bell-ring",
         entity_category=EntityCategory.CONFIG,
+    ),
+    MarshallSwitchEntityDescription(
+        key=FEATURE_NIGHT_MODE,
+        translation_key=FEATURE_NIGHT_MODE,
+        icon="mdi:weather-night",
     ),
 )
 
@@ -39,27 +44,13 @@ async def async_setup_entry(
     entry: MarshallConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up switch entities."""
+    """Set up switch entities supported by this speaker."""
     coordinator = entry.runtime_data.coordinator
-
-    # Get features supported by this model
-    model_features = get_model_features(coordinator.state.model)
-
-    # Filter entities based on model support
-    entities_to_add = []
-    for entity_description in ENTITY_DESCRIPTIONS:
-        if entity_description.key == "interaction_sounds" and not model_features.get(
-            "interaction_sounds"
-        ):
-            continue
-        entities_to_add.append(
-            MarshallSwitchEntity(
-                coordinator=coordinator,
-                entity_description=entity_description,
-            )
-        )
-
-    async_add_entities(entities_to_add)
+    async_add_entities(
+        MarshallSwitchEntity(coordinator=coordinator, entity_description=description)
+        for description in ENTITY_DESCRIPTIONS
+        if coordinator.supports(description.key)
+    )
 
 
 class MarshallSwitchEntity(MarshallEntity, SwitchEntity):
@@ -82,16 +73,18 @@ class MarshallSwitchEntity(MarshallEntity, SwitchEntity):
     @property
     def is_on(self) -> bool | None:
         """Return the current state."""
-        if self.entity_description.key == "interaction_sounds":
-            return self.coordinator.state.interaction_sounds
-        return None
+        return getattr(self.coordinator.state, self.entity_description.key, None)
 
     async def async_turn_on(self, **_kwargs: Any) -> None:
         """Turn on the switch."""
-        if self.entity_description.key == "interaction_sounds":
-            await self.coordinator.async_set_interaction_sounds(enabled=True)
+        await self._async_set(enabled=True)
 
     async def async_turn_off(self, **_kwargs: Any) -> None:
         """Turn off the switch."""
-        if self.entity_description.key == "interaction_sounds":
-            await self.coordinator.async_set_interaction_sounds(enabled=False)
+        await self._async_set(enabled=False)
+
+    async def _async_set(self, *, enabled: bool) -> None:
+        if self.entity_description.key == FEATURE_INTERACTION_SOUNDS:
+            await self.coordinator.async_set_interaction_sounds(enabled=enabled)
+        elif self.entity_description.key == FEATURE_NIGHT_MODE:
+            await self.coordinator.async_set_night_mode(enabled=enabled)

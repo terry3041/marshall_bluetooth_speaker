@@ -11,7 +11,6 @@ from homeassistant.components.sensor import (
 from homeassistant.const import EntityCategory
 
 from .entity import MarshallEntity
-from .model_config import get_model_features
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -23,25 +22,29 @@ if TYPE_CHECKING:
 ENTITY_DESCRIPTIONS = (
     SensorEntityDescription(
         key="model",
-        name="Model",
+        translation_key="model",
+        entity_registry_enabled_default=False,
         icon="mdi:information",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     SensorEntityDescription(
         key="serial",
-        name="Serial",
+        translation_key="serial",
+        entity_registry_enabled_default=False,
         icon="mdi:identifier",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     SensorEntityDescription(
         key="firmware",
-        name="Firmware",
+        translation_key="firmware",
+        entity_registry_enabled_default=False,
         icon="mdi:chip",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     SensorEntityDescription(
         key="hardware",
-        name="Hardware",
+        translation_key="hardware",
+        entity_registry_enabled_default=False,
         icon="mdi:memory",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -55,9 +58,6 @@ async def async_setup_entry(
 ) -> None:
     """Set up the sensor platform."""
     coordinator = entry.runtime_data.coordinator
-
-    # Get features supported by this model (for future use in filtering)
-    get_model_features(coordinator.state.model)
 
     async_add_entities(
         MarshallSensor(

@@ -34,6 +34,7 @@ class MarshallEntity(CoordinatorEntity[MarshallDataUpdateCoordinator]):
             else set(),
             manufacturer="Marshall",
             model=self.coordinator.state.model,
+            serial_number=self.coordinator.state.serial,
             name=name,
             sw_version=self.coordinator.state.firmware,
             hw_version=self.coordinator.state.hardware,

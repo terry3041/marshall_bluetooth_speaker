@@ -163,6 +163,7 @@ async def async_unload_entry(
     """Handle removal of an entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
+        entry.runtime_data.coordinator.async_shutdown_reconnect()
         await entry.runtime_data.client.async_disconnect()
     return unload_ok
 

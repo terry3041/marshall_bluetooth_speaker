@@ -17,38 +17,71 @@
         },
         "abort": {
             "already_configured": "This entry is already configured.",
-            "not_supported": "Device does not advertise the expected FE8F service."
+            "not_supported": "This device is not a supported Marshall speaker."
         }
     },
     "entity": {
+        "binary_sensor": {
+            "connected": {
+                "name": "Connected"
+            }
+        },
         "number": {
             "led_brightness": {
                 "name": "LED brightness"
             },
             "eq_band_0": {
-                "name": "EQ Bass"
+                "name": "EQ bass"
             },
             "eq_band_1": {
-                "name": "EQ Low-Mid"
+                "name": "EQ low-mid"
             },
             "eq_band_2": {
-                "name": "EQ Mid"
+                "name": "EQ mid"
             },
             "eq_band_3": {
-                "name": "EQ High-Mid"
+                "name": "EQ high-mid"
             },
             "eq_band_4": {
-                "name": "EQ Treble"
+                "name": "EQ treble"
             }
         },
         "select": {
             "source": {
                 "name": "Source"
+            },
+            "room_placement": {
+                "name": "Placement compensation",
+                "state": {
+                    "wall": "Near a wall",
+                    "corner": "In a corner",
+                    "free_standing": "Free-standing",
+                    "edge_wall": "Near a wall, at shelf edge",
+                    "edge_corner": "In a corner, at shelf edge",
+                    "edge_free_standing": "Free-standing, at shelf edge"
+                }
+            }
+        },
+        "sensor": {
+            "model": {
+                "name": "Model"
+            },
+            "serial": {
+                "name": "Serial number"
+            },
+            "firmware": {
+                "name": "Firmware"
+            },
+            "hardware": {
+                "name": "Hardware"
             }
         },
         "switch": {
             "interaction_sounds": {
                 "name": "Interaction sounds"
+            },
+            "night_mode": {
+                "name": "Night mode"
             }
         }
     },

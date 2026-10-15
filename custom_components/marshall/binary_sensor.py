@@ -12,7 +12,6 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.helpers.entity import EntityCategory
 
 from .entity import MarshallEntity
-from .model_config import get_model_features
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -24,7 +23,7 @@ if TYPE_CHECKING:
 ENTITY_DESCRIPTIONS = (
     BinarySensorEntityDescription(
         key="connected",
-        name="Connected",
+        translation_key="connected",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -38,9 +37,6 @@ async def async_setup_entry(
 ) -> None:
     """Set up the binary_sensor platform."""
     coordinator = entry.runtime_data.coordinator
-
-    # Get features supported by this model (for future use in filtering)
-    get_model_features(coordinator.state.model)
 
     async_add_entities(
         MarshallBinarySensor(

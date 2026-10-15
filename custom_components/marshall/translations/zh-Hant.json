@@ -1,0 +1,128 @@
+{
+    "config": {
+        "step": {
+            "bluetooth": {
+                "description": "在 {address} 發現裝置。請確認或修改名稱。",
+                "data": {
+                    "name": "名稱（選填）"
+                }
+            },
+            "user": {
+                "description": "選擇藍牙裝置或輸入其位址。",
+                "data": {
+                    "address": "藍牙位址",
+                    "name": "名稱（選填）"
+                }
+            }
+        },
+        "abort": {
+            "already_configured": "此裝置已設定。",
+            "not_supported": "此裝置不是支援的 Marshall 喇叭。"
+        }
+    },
+    "entity": {
+        "binary_sensor": {
+            "connected": {
+                "name": "已連線"
+            }
+        },
+        "number": {
+            "led_brightness": {
+                "name": "LED 亮度"
+            },
+            "eq_band_0": {
+                "name": "等化器 低音"
+            },
+            "eq_band_1": {
+                "name": "等化器 中低音"
+            },
+            "eq_band_2": {
+                "name": "等化器 中音"
+            },
+            "eq_band_3": {
+                "name": "等化器 中高音"
+            },
+            "eq_band_4": {
+                "name": "等化器 高音"
+            }
+        },
+        "select": {
+            "source": {
+                "name": "音源"
+            },
+            "room_placement": {
+                "name": "擺放位置補償",
+                "state": {
+                    "wall": "靠牆",
+                    "corner": "牆角",
+                    "free_standing": "獨立擺放",
+                    "edge_wall": "靠牆，置於層架邊緣",
+                    "edge_corner": "牆角，置於層架邊緣",
+                    "edge_free_standing": "獨立擺放，置於層架邊緣"
+                }
+            }
+        },
+        "sensor": {
+            "model": {
+                "name": "型號"
+            },
+            "serial": {
+                "name": "序號"
+            },
+            "firmware": {
+                "name": "韌體"
+            },
+            "hardware": {
+                "name": "硬體"
+            }
+        },
+        "switch": {
+            "interaction_sounds": {
+                "name": "操作提示音"
+            },
+            "night_mode": {
+                "name": "夜間模式"
+            }
+        }
+    },
+    "services": {
+        "enter_pairing_mode": {
+            "name": "進入配對模式",
+            "description": "讓喇叭進入藍牙配對模式以連接新裝置。",
+            "fields": {
+                "device_id": {
+                    "name": "裝置",
+                    "description": "要進入配對模式的 Marshall 喇叭。"
+                }
+            }
+        },
+        "set_device_name": {
+            "name": "設定裝置名稱",
+            "description": "更改喇叭顯示的裝置名稱。",
+            "fields": {
+                "device_id": {
+                    "name": "裝置",
+                    "description": "要重新命名的 Marshall 喇叭。"
+                },
+                "name": {
+                    "name": "名稱",
+                    "description": "新的裝置名稱（最多 255 位元組）。"
+                }
+            }
+        },
+        "set_equaliser_profile": {
+            "name": "設定等化器",
+            "description": "設定 5 段等化器（低音、中低音、中音、中高音、高音）。",
+            "fields": {
+                "device_id": {
+                    "name": "裝置",
+                    "description": "要調整的 Marshall 喇叭。"
+                },
+                "bands": {
+                    "name": "等化器頻段",
+                    "description": "5 個數值（0-10，5 為平直）：[低音, 中低音, 中音, 中高音, 高音]。喇叭沒有的頻段會被忽略。"
+                }
+            }
+        }
+    }
+}

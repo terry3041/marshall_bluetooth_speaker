@@ -47,6 +47,36 @@ CHAR_FCCD_SOURCE = "0000001b" + FCCD_UUID_SUFFIX
 CHAR_FCCD_PAIRING = "00000001" + FCCD_UUID_SUFFIX
 CHAR_FCCD_RENAME = "00000003" + FCCD_UUID_SUFFIX
 CHAR_FCCD_LED_BRIGHTNESS = "0000003a" + FCCD_UUID_SUFFIX
+CHAR_FCCD_VOLUME_LIMIT = "00000008" + FCCD_UUID_SUFFIX
+CHAR_FCCD_UI_SOUNDS = "0000000b" + FCCD_UUID_SUFFIX
+CHAR_FCCD_ROOM_PLACEMENT = "0000001e" + FCCD_UUID_SUFFIX
+CHAR_FCCD_NIGHT_MODE = "0000001f" + FCCD_UUID_SUFFIX
+
+# Optional FCCD features, detected by characteristic presence at runtime.
+# LED brightness and UI sounds are listed so they are only exposed when the
+# speaker actually has them (Acton III has neither).
+FEATURE_LED_BRIGHTNESS = "led_brightness"
+FEATURE_INTERACTION_SOUNDS = "interaction_sounds"
+FEATURE_ROOM_PLACEMENT = "room_placement"
+FEATURE_NIGHT_MODE = "night_mode"
+FEATURE_RENAME = "rename"
+FCCD_FEATURE_CHARACTERISTICS = {
+    FEATURE_ROOM_PLACEMENT: CHAR_FCCD_ROOM_PLACEMENT,
+    FEATURE_NIGHT_MODE: CHAR_FCCD_NIGHT_MODE,
+    FEATURE_RENAME: CHAR_FCCD_RENAME,
+}
+
+# Room placement ("Placement compensation" in the Marshall app).
+# Values from the app's RoomPlacement enum: CLOSE_EDGE_* means the front of
+# the speaker is flush with the edge of a table/shelf.
+ROOM_PLACEMENT_OPTIONS = {
+    0x00: "edge_wall",
+    0x01: "edge_corner",
+    0x02: "edge_free_standing",
+    0x03: "wall",
+    0x04: "corner",
+    0x05: "free_standing",
+}
 
 NOTIFY_CHARACTERISTICS = {
     CHAR_VOLUME,
@@ -57,6 +87,14 @@ NOTIFY_CHARACTERISTICS = {
 
 VOLUME_MIN = 0
 VOLUME_MAX = 32
+# FCCD devices report their maximum volume step on CHAR_FCCD_VOLUME_LIMIT.
+FCCD_VOLUME_MAX_DEFAULT = 31
+
+# Media info entry IDs (FCCD now-playing and FE8F media info share the format)
+MEDIA_ENTRY_TITLE = 1
+MEDIA_ENTRY_ARTIST = 2
+MEDIA_ENTRY_ALBUM = 3
+MEDIA_NOT_PROVIDED = {"not provided", "0 not provided"}
 
 LED_BRIGHTNESS_MIN = 0
 LED_BRIGHTNESS_MAX = 35
