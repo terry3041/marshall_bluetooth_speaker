@@ -107,6 +107,31 @@ AUDIO_SOURCE_MAPPING = {
     0x04: "RCA",
 }
 
+# FCCD (Gen III) audio source values, from the Marshall app's AudioSource enum.
+# Written as a single byte to CHAR_FCCD_SOURCE.
+FCCD_AUDIO_SOURCE_COMMANDS = {
+    "Bluetooth": 0x00,
+    "Aux": 0x02,
+    "RCA": 0x03,
+}
+FCCD_AUDIO_SOURCE_MAPPING = {
+    0x00: "Bluetooth",
+    0x01: "Wi-Fi",
+    0x02: "Aux",
+    0x03: "RCA",
+    0x04: "Optical",
+    0x05: "HDMI",
+    0x06: "BLE Audio",
+    0x07: "USB-C",
+    0x08: "BLE Audio Broadcast",
+    0x09: "HDMI eARC",
+}
+# Some FCCD devices report the source in an extended format:
+# [0xFE, flags, enabled, available_sources (uint16 BE bitmask), current_source]
+FCCD_SOURCE_SCHEME2_MARKER = 0xFE
+FCCD_SOURCE_SCHEME2_MIN_LENGTH = 6
+FCCD_SOURCE_SCHEME2_INDEX = 5
+
 # Play status mapping (int to status)
 PLAY_STATUS_MAPPING = {
     0x00: "playing",

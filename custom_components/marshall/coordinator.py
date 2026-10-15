@@ -31,6 +31,11 @@ from .const import (
     CHAR_VOLUME,
     DEVICE_NAME_MAX_LENGTH,
     EQ_BAND_COUNT,
+    FCCD_AUDIO_SOURCE_COMMANDS,
+    FCCD_AUDIO_SOURCE_MAPPING,
+    FCCD_SOURCE_SCHEME2_INDEX,
+    FCCD_SOURCE_SCHEME2_MARKER,
+    FCCD_SOURCE_SCHEME2_MIN_LENGTH,
     LED_BRIGHTNESS_OFFSET,
     LOGGER,
     MEDIA_INFO_ENTRY_MARKER_TERMINATOR,
@@ -156,10 +161,9 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
             # Source
             src_uuid = self._char(CHAR_CONTROL, CHAR_FCCD_SOURCE)
             src_data = await self._safe_read(src_uuid)
-            if src_data and len(src_data) >= 1:
-                self.state.source = {0x00: "Bluetooth", 0x01: "Aux"}.get(
-                    src_data[0], f"0x{src_data[0]:02X}"
-                )
+            source = self._decode_fccd_source(src_data)
+            if source is not None:
+                self.state.source = source
         elif control and len(control) > STATUS_INDEX_INTERACTION_SOUND:
             self.state.source = AUDIO_SOURCE_MAPPING.get(control[STATUS_INDEX_SOURCE])
             status = PLAY_STATUS_MAPPING.get(control[STATUS_INDEX_PLAY_STATUS])
@@ -237,10 +241,9 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
             ):
                 self.state.media_info = self._decode_media_info(data)
         elif uuid == src_uuid and self._is_fccd:
-            if data and len(data) >= 1:
-                self.state.source = {0x00: "Bluetooth", 0x01: "Aux"}.get(
-                    data[0], f"0x{data[0]:02X}"
-                )
+            source = self._decode_fccd_source(data)
+            if source is not None:
+                self.state.source = source
         elif uuid == eq_uuid:
             if data and len(data) >= EQ_BAND_COUNT:
                 bands = []
@@ -251,6 +254,18 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
             self.state.unknown_notify[uuid] = data
 
         self.async_set_updated_data(self.state)
+
+    @staticmethod
+    def _decode_fccd_source(data: bytes) -> str | None:
+        """Decode an FCCD audio source payload (single byte or scheme 2)."""
+        if not data:
+            return None
+        value = data[0]
+        if value == FCCD_SOURCE_SCHEME2_MARKER:
+            if len(data) < FCCD_SOURCE_SCHEME2_MIN_LENGTH:
+                return None
+            value = data[FCCD_SOURCE_SCHEME2_INDEX]
+        return FCCD_AUDIO_SOURCE_MAPPING.get(value, f"0x{value:02X}")
 
     async def _safe_read(self, uuid: str) -> bytes:
         try:
@@ -277,11 +292,10 @@ class MarshallDataUpdateCoordinator(DataUpdateCoordinator[MarshallState]):
     async def async_set_audio_source(self, source: str) -> None:
         """Set audio source (Bluetooth, Aux, or RCA)."""
         if self._is_fccd:
-            fccd_sources = {"Bluetooth": 0x00, "Aux": 0x01}
-            if source not in fccd_sources:
+            if source not in FCCD_AUDIO_SOURCE_COMMANDS:
                 LOGGER.warning("Invalid audio source for FCCD device: %s", source)
                 return
-            command = fccd_sources[source]
+            command = FCCD_AUDIO_SOURCE_COMMANDS[source]
             try:
                 await self.client.async_write(
                     CHAR_FCCD_SOURCE, bytes([command]), response=True
